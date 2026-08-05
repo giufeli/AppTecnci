@@ -1,0 +1,177 @@
+﻿@page "/impianti"
+@using System.Net.Http.Json
+@inject ILocalStorageService LocalStorage
+@inject HttpClient Http
+@inject NavigationManager NavigationManager
+@inject DialogService DialogService
+
+<div class="d-flex justify-content-between mb-3">
+    <h3>Gestione Impianti</h3>
+    <RadzenButton Icon="add" Text="Nuovo Impianto" ButtonStyle="ButtonStyle.Primary" Click="@(() => NavigationManager.NavigateTo("/impianti/nuovo"))" />
+</div>
+
+<RadzenDataGrid Data="@impianti" TItem="Impianto" AllowPaging="true" PageSize="5">
+    <Columns>
+        <RadzenDataGridColumn Property="CartinaBase64" Title="Cartina" Width="80px" Sortable="false">
+            <Template Context="impianto">
+                @if (!string.IsNullOrEmpty(impianto.CartinaBase64))
+                {
+                    <RadzenButton Icon="image"
+                                  ButtonStyle="ButtonStyle.Info"
+                                  Size="ButtonSize.Small"
+                                  Variant="Variant.Flat"
+                                  Click="@(() => ApriCartina(impianto))"
+                                  ToolTip="Visualizza cartina" />
+                }
+                else
+                {
+                    <RadzenButton Icon="hide_image"
+                                  ButtonStyle="ButtonStyle.Secondary"
+                                  Size="ButtonSize.Small"
+                                  Variant="Variant.Flat"
+                                  Disabled="true"
+                                  ToolTip="Nessuna cartina disponibile" />
+                }
+            </Template>
+        </RadzenDataGridColumn>
+
+        <RadzenDataGridColumn Property="Id" Title="ID" Width="70px" />
+        <RadzenDataGridColumn Property="Nome" Title="Nome Impianto" />
+        <RadzenDataGridColumn Property="Indirizzo" Title="Indirizzo" />
+        <RadzenDataGridColumn Property="Descrizione" Title="Descrizione" />
+
+        <RadzenDataGridColumn Title="Azioni" Width="130px" Sortable="false">
+            <Template Context="impianto">
+                <RadzenButton Icon="edit" ButtonStyle="ButtonStyle.Warning" Size="ButtonSize.Small" Class="me-1" Click="@(() => NavigationManager.NavigateTo($"/impianti/modifica/{impianto.Id}"))" />
+                <RadzenButton Icon="delete" ButtonStyle="ButtonStyle.Danger" Size="ButtonSize.Small" Click="@(() => EliminaImpianto(impianto))" />
+            </Template>
+        </RadzenDataGridColumn>
+    </Columns>
+</RadzenDataGrid>
+
+@code {
+    private List<Impianto>? impianti;
+    private const string STORAGE_KEY = "lista_impianti";
+    private const string CODA_OFFLINE_KEY = "coda_impianti_offline";
+    private const string CODA_ELIMINAZIONI_IMPIANTI_KEY = "coda_eliminazioni_impianti_offline";
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            var datiCached = await LocalStorage.GetItemAsync<List<Impianto>>(STORAGE_KEY);
+            if (datiCached != null)
+            {
+                impianti = datiCached;
+                StateHasChanged();
+            }
+
+            await CaricaImpianti();
+        }
+    }
+
+    private async Task CaricaImpianti()
+    {
+        try
+        {
+            var nuoviDati = await Http.GetFromJsonAsync<List<Impianto>>("api/impianti");
+            
+            // Mantieni nella lista visualizzata gli elementi creati offline non ancora sincronizzati
+            var impiantiOfflineInCoda = await LocalStorage.GetItemAsync<List<Impianto>>(CODA_OFFLINE_KEY) ?? new List<Impianto>();
+            
+            impianti = nuoviDati ?? new List<Impianto>();
+            if (impiantiOfflineInCoda.Count > 0)
+            {
+                impianti.AddRange(impiantiOfflineInCoda);
+            }
+
+            if (impianti.Count == 0)
+            {
+                await LocalStorage.RemoveItemAsync(STORAGE_KEY);
+            }
+            else
+            {
+                await LocalStorage.SetItemAsync(STORAGE_KEY, impianti);
+            }
+
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Errore caricamento impianti da API: {ex.Message}");
+        }
+    }
+
+    private async Task ApriCartina(Impianto impianto)
+    {
+        await DialogService.OpenAsync(impianto.Nome, ds =>
+            @<div class="text-center p-3">
+                <img src="@impianto.CartinaBase64" style="max-width: 100%; max-height: 80vh; border-radius: 8px;" />
+            </div>
+        , new DialogOptions() { Width = "auto", Height = "auto", Resizable = true, Draggable = true });
+    }
+
+    private async Task EliminaImpianto(Impianto impianto)
+    {
+        bool? confermato = await DialogService.Confirm(
+            $"Sei sicuro di voler eliminare l'impianto '{impianto.Nome}'?",
+            "Conferma Eliminazione",
+            new ConfirmOptions { OkButtonText = "Sì", CancelButtonText = "No" }
+        );
+
+        if (confermato == true)
+        {
+            // Se l'impianto è stato creato offline (non presente su DB Server)
+            if (impianto.IsNuovoOffline || impianto.Id < 0)
+            {
+                // Rimuovilo dalla coda dei nuovi elementi pendenti
+                var codaNuovi = await LocalStorage.GetItemAsync<List<Impianto>>(CODA_OFFLINE_KEY) ?? new List<Impianto>();
+                codaNuovi.RemoveAll(i => i.Id == impianto.Id || i.Nome == impianto.Nome);
+                await LocalStorage.SetItemAsync(CODA_OFFLINE_KEY, codaNuovi);
+            }
+            else
+            {
+                try
+                {
+                    var response = await Http.DeleteAsync($"api/impianti/{impianto.Id}");
+                    if (!response.IsSuccessStatusCode)
+                    {
+                        await AccodaEliminazioneOffline(impianto.Id);
+                    }
+                }
+                catch (Exception)
+                {
+                    await AccodaEliminazioneOffline(impianto.Id);
+                }
+            }
+
+            // Aggiorna la vista locale immediata
+            if (impianti != null)
+            {
+                impianti.RemoveAll(i => i.Id == impianto.Id);
+                if (impianti.Count == 0)
+                {
+                    await LocalStorage.RemoveItemAsync(STORAGE_KEY);
+                }
+                else
+                {
+                    await LocalStorage.SetItemAsync(STORAGE_KEY, impianti);
+                }
+                StateHasChanged();
+            }
+        }
+    }
+
+    private async Task AccodaEliminazioneOffline(int id)
+    {
+        if (id > 0)
+        {
+            var codaEliminazioni = await LocalStorage.GetItemAsync<List<int>>(CODA_ELIMINAZIONI_IMPIANTI_KEY) ?? new List<int>();
+            if (!codaEliminazioni.Contains(id))
+            {
+                codaEliminazioni.Add(id);
+                await LocalStorage.SetItemAsync(CODA_ELIMINAZIONI_IMPIANTI_KEY, codaEliminazioni);
+            }
+        }
+    }
+}

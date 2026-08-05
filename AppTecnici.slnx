@@ -1,0 +1,5 @@
+<Solution>
+  <Project Path="AppTecnici.Client/AppTecnici.Client.csproj" />
+  <Project Path="AppTecnici.Server/AppTecnici.Server.csproj" />
+  <Project Path="AppTecnici.Shared/AppTecnici.Shared.csproj" />
+</Solution>

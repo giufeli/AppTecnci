@@ -1,0 +1,94 @@
+@using System.Net.Http.Json
+@inject ILocalStorageService LocalStorage
+@inject HttpClient Http
+
+<div class="d-flex align-items-center me-3">
+    @if (elementiDaSincronizzare > 0)
+    {
+        <RadzenButton Icon="sync"
+                      Text="@($"Sincronizza ({elementiDaSincronizzare})")"
+                      ButtonStyle="ButtonStyle.Warning"
+                      Size="ButtonSize.Small"
+                      IsBusy="@inSincronizzazione"
+                      Click="@SincronizzaDatiOffline"
+                      ToolTip="Hai dati salvati offline non ancora inviati al server" />
+    }
+    else
+    {
+        <RadzenBadge BadgeStyle="BadgeStyle.Success" Text="Online - Sincronizzato" />
+    }
+</div>
+
+@code {
+    private int elementiDaSincronizzare = 0;
+    private bool inSincronizzazione = false;
+
+    private const string CODA_IMPIANTI_KEY = "coda_impianti_offline";
+    private const string CODA_INTERVENTI_KEY = "coda_interventi_offline";
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await ControllaCodaOffline();
+        }
+    }
+
+    private async Task ControllaCodaOffline()
+    {
+        var codaImpianti = await LocalStorage.GetItemAsync<List<Impianto>>(CODA_IMPIANTI_KEY) ?? new();
+        var codaInterventi = await LocalStorage.GetItemAsync<List<Intervento>>(CODA_INTERVENTI_KEY) ?? new();
+
+        elementiDaSincronizzare = codaImpianti.Count + codaInterventi.Count;
+        StateHasChanged();
+    }
+
+    private async Task SincronizzaDatiOffline()
+    {
+        inSincronizzazione = true;
+        StateHasChanged();
+
+        try
+        {
+            // 1. Sincronizza Impianti
+            var codaImpianti = await LocalStorage.GetItemAsync<List<Impianto>>(CODA_IMPIANTI_KEY) ?? new();
+            var impiantiRimasti = new List<Impianto>();
+
+            foreach (var imp in codaImpianti)
+            {
+                // Resettiamo l'ID temporaneo negativo prima dell'invio
+                imp.Id = 0;
+                var res = await Http.PostAsJsonAsync("api/impianti", imp);
+                if (!res.IsSuccessStatusCode)
+                {
+                    impiantiRimasti.Add(imp); // Se fallisce lo rimettiamo in coda
+                }
+            }
+            await LocalStorage.SetItemAsync(CODA_IMPIANTI_KEY, impiantiRimasti);
+
+            // 2. Sincronizza Interventi
+            var codaInterventi = await LocalStorage.GetItemAsync<List<Intervento>>(CODA_INTERVENTI_KEY) ?? new();
+            var interventiRimasti = new List<Intervento>();
+
+            foreach (var inte in codaInterventi)
+            {
+                inte.Id = 0;
+                var res = await Http.PostAsJsonAsync("api/interventi", inte);
+                if (!res.IsSuccessStatusCode)
+                {
+                    interventiRimasti.Add(inte);
+                }
+            }
+            await LocalStorage.SetItemAsync(CODA_INTERVENTI_KEY, interventiRimasti);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Errore durante la sincronizzazione: {ex.Message}");
+        }
+        finally
+        {
+            inSincronizzazione = false;
+            await ControllaCodaOffline();
+        }
+    }
+}

@@ -1,0 +1,165 @@
+﻿@page "/impianti/modifica/{id:int}"
+@using System.Net.Http.Json
+@inject ILocalStorageService LocalStorage
+@inject NavigationManager NavigationManager
+@inject HttpClient Http
+
+<PageTitle>Modifica Impianto</PageTitle>
+
+<RadzenCard Style="max-width: 600px; margin: 2rem auto;">
+    <RadzenText TextStyle="TextStyle.H5" TagName="TagName.H2" Class="mb-4">
+        Modifica Impianto #@Id
+    </RadzenText>
+
+    @if (impianto == null)
+    {
+        <RadzenProgressBar Value="100" Mode="ProgressBarMode.Indeterminate" />
+    }
+    else
+    {
+        <EditForm Model="@impianto" OnValidSubmit="@SalvaModifiche">
+            <DataAnnotationsValidator />
+            <div class="text-danger mb-3">
+                <ValidationSummary />
+            </div>
+
+            <div class="mb-3">
+                <RadzenLabel Text="Nome Impianto" Style="width: 100%; display: block;" />
+                <RadzenTextBox @bind-Value="@impianto.Nome" Style="width: 100%;" />
+            </div>
+
+            <div class="mb-3">
+                <RadzenLabel Text="Indirizzo" Style="width: 100%; display: block;" />
+                <RadzenTextBox @bind-Value="@impianto.Indirizzo" Style="width: 100%;" />
+            </div>
+
+            <div class="mb-3">
+                <RadzenLabel Text="Descrizione" Style="width: 100%; display: block;" />
+                <RadzenTextArea @bind-Value="@impianto.Descrizione" Style="width: 100%;" Rows="3" />
+            </div>
+
+            <div class="mb-3">
+                <RadzenLabel Text="Cartina Impianto" Style="width: 100%; display: block;" />
+                <InputFile OnChange="@OnFileChange" accept="image/*" class="form-control" />
+
+                @if (!string.IsNullOrEmpty(impianto.CartinaBase64))
+                {
+                    <div class="mt-2">
+                        <img src="@impianto.CartinaBase64" style="max-height: 150px; border-radius: 8px; border: 1px solid #ccc;" />
+                    </div>
+                }
+            </div>
+
+            <div class="d-flex justify-content-end gap-2 mt-4">
+                <RadzenButton ButtonStyle="ButtonStyle.Light" Text="Annulla" Click="@Annulla" />
+                <RadzenButton ButtonType="ButtonType.Submit" ButtonStyle="ButtonStyle.Primary" Text="Salva Modifiche" />
+            </div>
+        </EditForm>
+    }
+</RadzenCard>
+
+@code {
+    [Parameter] public int Id { get; set; }
+
+    private Impianto? impianto;
+    private const string STORAGE_KEY_IMPIANTI = "lista_impianti";
+    private const string CODA_OFFLINE_KEY = "coda_impianti_offline";
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            var impiantiSalvati = await LocalStorage.GetItemAsync<List<Impianto>>(STORAGE_KEY_IMPIANTI);
+            impianto = impiantiSalvati?.FirstOrDefault(i => i.Id == Id);
+
+            if (impianto == null)
+            {
+                try
+                {
+                    impianto = await Http.GetFromJsonAsync<Impianto>($"api/impianti/{Id}");
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"Errore nel recupero impianto: {ex.Message}");
+                }
+            }
+
+            StateHasChanged();
+        }
+    }
+
+    private async Task OnFileChange(InputFileChangeEventArgs e)
+    {
+        var file = e.File;
+        if (file != null && impianto != null)
+        {
+            var resizedFile = await file.RequestImageFileAsync("image/png", 800, 800);
+            var buffer = new byte[resizedFile.Size];
+
+            using (var stream = resizedFile.OpenReadStream(maxAllowedSize: 1024 * 1024 * 5))
+            {
+                await stream.ReadAsync(buffer);
+            }
+
+            impianto.CartinaBase64 = $"data:image/png;base64,{Convert.ToBase64String(buffer)}";
+        }
+    }
+
+    private async Task SalvaModifiche()
+    {
+        if (impianto == null) return;
+
+        // Se l'elemento è stato creato offline, aggiorna direttamente la coda dei nuovi elementi
+        if (impianto.IsNuovoOffline || impianto.Id < 0)
+        {
+            await AggiornaCodaOffline(impianto);
+        }
+        else
+        {
+            try
+            {
+                var response = await Http.PutAsJsonAsync($"api/impianti/{impianto.Id}", impianto);
+                if (!response.IsSuccessStatusCode)
+                {
+                    await AggiornaCodaOffline(impianto);
+                }
+            }
+            catch (Exception ex) when (ex is HttpRequestException || ex is TaskCanceledException)
+            {
+                await AggiornaCodaOffline(impianto);
+            }
+        }
+
+        // Aggiorna la vista locale immediata
+        var impiantiSalvati = await LocalStorage.GetItemAsync<List<Impianto>>(STORAGE_KEY_IMPIANTI) ?? new List<Impianto>();
+        var index = impiantiSalvati.FindIndex(i => i.Id == impianto.Id);
+        if (index != -1)
+        {
+            impiantiSalvati[index] = impianto;
+        }
+        else
+        {
+            impiantiSalvati.Add(impianto);
+        }
+
+        await LocalStorage.SetItemAsync(STORAGE_KEY_IMPIANTI, impiantiSalvati);
+        NavigationManager.NavigateTo("/impianti");
+    }
+
+    private async Task AggiornaCodaOffline(Impianto imp)
+    {
+        var coda = await LocalStorage.GetItemAsync<List<Impianto>>(CODA_OFFLINE_KEY) ?? new List<Impianto>();
+        var indexCoda = coda.FindIndex(i => i.Id == imp.Id);
+        if (indexCoda != -1)
+        {
+            coda[indexCoda] = imp;
+        }
+        else
+        {
+            coda.Add(imp);
+        }
+        await LocalStorage.SetItemAsync(CODA_OFFLINE_KEY, coda);
+    }
+
+    private void Annulla() => NavigationManager.NavigateTo("/impianti");
+}

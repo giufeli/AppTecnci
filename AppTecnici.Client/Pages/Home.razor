@@ -1,0 +1,129 @@
+﻿@page "/"
+@using System.Net.Http.Json
+@inject ILocalStorageService LocalStorage
+@inject HttpClient Http
+@inject NavigationManager NavigationManager
+
+<PageTitle>Dashboard - App Tecnici</PageTitle>
+
+<RadzenText TextStyle="TextStyle.H4" Class="mb-4" Style="font-weight: bold;">
+    Dashboard Operativa
+</RadzenText>
+
+<!-- SCHEDE KPI (CONTATORI) -->
+<div class="row mb-4">
+    <div class="col-md-3 mb-3">
+        <RadzenCard Style="background-color: var(--rz-primary-light); border-left: 5px solid var(--rz-primary);">
+            <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" JustifyContent="JustifyContent.SpaceBetween">
+                <div>
+                    <RadzenText TextStyle="TextStyle.Overline" Class="rz-color-primary-darker">Totale Impianti</RadzenText>
+                    <RadzenText TextStyle="TextStyle.H3" Class="rz-m-0">@totaleImpianti</RadzenText>
+                </div>
+                <RadzenIcon Icon="precision_manufacturing" Style="font-size: 3rem; color: var(--rz-primary);" />
+            </RadzenStack>
+        </RadzenCard>
+    </div>
+
+    <div class="col-md-3 mb-3">
+        <RadzenCard Style="background-color: var(--rz-info-light); border-left: 5px solid var(--rz-info);">
+            <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" JustifyContent="JustifyContent.SpaceBetween">
+                <div>
+                    <RadzenText TextStyle="TextStyle.Overline">Totale Interventi</RadzenText>
+                    <RadzenText TextStyle="TextStyle.H3" Class="rz-m-0">@totaleInterventi</RadzenText>
+                </div>
+                <RadzenIcon Icon="build" Style="font-size: 3rem; color: var(--rz-info);" />
+            </RadzenStack>
+        </RadzenCard>
+    </div>
+
+    <div class="col-md-3 mb-3">
+        <RadzenCard Style="background-color: var(--rz-warning-light); border-left: 5px solid var(--rz-warning);">
+            <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" JustifyContent="JustifyContent.SpaceBetween">
+                <div>
+                    <RadzenText TextStyle="TextStyle.Overline">Interventi In Corso</RadzenText>
+                    <RadzenText TextStyle="TextStyle.H3" Class="rz-m-0">@interventiInCorso</RadzenText>
+                </div>
+                <RadzenIcon Icon="pending_actions" Style="font-size: 3rem; color: var(--rz-warning);" />
+            </RadzenStack>
+        </RadzenCard>
+    </div>
+
+    <div class="col-md-3 mb-3">
+        <RadzenCard Style="background-color: var(--rz-success-light); border-left: 5px solid var(--rz-success);">
+            <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" JustifyContent="JustifyContent.SpaceBetween">
+                <div>
+                    <RadzenText TextStyle="TextStyle.Overline">Completati</RadzenText>
+                    <RadzenText TextStyle="TextStyle.H3" Class="rz-m-0">@interventiCompletati</RadzenText>
+                </div>
+                <RadzenIcon Icon="task_alt" Style="font-size: 3rem; color: var(--rz-success);" />
+            </RadzenStack>
+        </RadzenCard>
+    </div>
+</div>
+
+<!-- AZIONI RAPIDE E GRAFICO STATO INTERVENTI -->
+<div class="row">
+    <div class="col-md-6 mb-4">
+        <RadzenCard>
+            <RadzenText TextStyle="TextStyle.H6" Class="mb-3">Azioni Rapide</RadzenText>
+            <RadzenStack Orientation="Orientation.Vertical" Gap="1rem">
+                <RadzenButton Icon="add" Text="Nuovo Impianto" ButtonStyle="ButtonStyle.Primary" Size="ButtonSize.Medium" Click="@(() => NavigationManager.NavigateTo("/impianti/nuovo"))" />
+                <RadzenButton Icon="post_add" Text="Nuovo Intervento" ButtonStyle="ButtonStyle.Info" Size="ButtonSize.Medium" Click="@(() => NavigationManager.NavigateTo("/interventi/nuovo"))" />
+                <RadzenButton Icon="list_alt" Text="Consulta Elenco Impianti" ButtonStyle="ButtonStyle.Secondary" Variant="Variant.Outlined" Click="@(() => NavigationManager.NavigateTo("/impianti"))" />
+            </RadzenStack>
+        </RadzenCard>
+    </div>
+
+    <div class="col-md-6 mb-4">
+        <RadzenCard>
+            <RadzenText TextStyle="TextStyle.H6" Class="mb-3">Ripartizione Interventi</RadzenText>
+            <RadzenChart Style="height: 220px;">
+                <RadzenPieSeries Data="@statisticheStato" CategoryProperty="Stato" ValueProperty="Conteggio">
+                    <RadzenSeriesDataLabels Visible="true" />
+                </RadzenPieSeries>
+            </RadzenChart>
+        </RadzenCard>
+    </div>
+</div>
+
+@code {
+    private int totaleImpianti = 0;
+    private int totaleInterventi = 0;
+    private int interventiInCorso = 0;
+    private int interventiCompletati = 0;
+
+    private List<StatoStatistica> statisticheStato = new();
+
+    private class StatoStatistica
+    {
+        public string Stato { get; set; } = string.Empty;
+        public int Conteggio { get; set; }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await CalcolaStatistiche();
+        }
+    }
+
+    private async Task CalcolaStatistiche()
+    {
+        var impianti = await LocalStorage.GetItemAsync<List<Impianto>>("lista_impianti") ?? new List<Impianto>();
+        var interventi = await LocalStorage.GetItemAsync<List<Intervento>>("lista_interventi") ?? new List<Intervento>();
+
+        totaleImpianti = impianti.Count;
+        totaleInterventi = interventi.Count;
+
+        interventiInCorso = interventi.Count(i => i.Stato == "In corso");
+        interventiCompletati = interventi.Count(i => i.Stato == "Completato");
+
+        statisticheStato = interventi
+            .GroupBy(i => i.Stato)
+            .Select(g => new StatoStatistica { Stato = g.Key ?? "N/D", Conteggio = g.Count() })
+            .ToList();
+
+        StateHasChanged();
+    }
+}

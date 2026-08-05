@@ -1,0 +1,157 @@
+﻿@page "/interventi/modifica/{id:int}"
+@using System.Net.Http.Json
+@inject ILocalStorageService LocalStorage
+@inject NavigationManager NavigationManager
+@inject HttpClient Http
+
+<PageTitle>Modifica Intervento</PageTitle>
+
+<RadzenCard Style="max-width: 600px; margin: 2rem auto;">
+    <RadzenText TextStyle="TextStyle.H5" TagName="TagName.H2" Class="mb-4">
+        Modifica Intervento #@Id
+    </RadzenText>
+
+    @if (intervento == null)
+    {
+        <RadzenProgressBar Value="100" Mode="ProgressBarMode.Indeterminate" />
+    }
+    else
+    {
+        <EditForm Model="@intervento" OnValidSubmit="@SalvaModifiche">
+            <DataAnnotationsValidator />
+            <div class="text-danger mb-3">
+                <ValidationSummary />
+            </div>
+
+            <div class="mb-3">
+                <RadzenLabel Text="Impianto" Style="width: 100%; display: block;" />
+                <RadzenDropDown @bind-Value="@intervento.ImpiantoId"
+                                Data="@impianti"
+                                TextProperty="Nome"
+                                ValueProperty="Id"
+                                Placeholder="Seleziona un impianto..."
+                                Style="width: 100%;" />
+            </div>
+
+            <div class="mb-3">
+                <RadzenLabel Text="Titolo" Style="width: 100%; display: block;" />
+                <RadzenTextBox @bind-Value="@intervento.Titolo" Style="width: 100%;" />
+            </div>
+
+            <div class="mb-3">
+                <RadzenLabel Text="Descrizione" Style="width: 100%; display: block;" />
+                <RadzenTextArea @bind-Value="@intervento.Descrizione" Style="width: 100%;" Rows="3" />
+            </div>
+
+            <div class="mb-3">
+                <RadzenLabel Text="Data Intervento" Style="width: 100%; display: block;" />
+                <RadzenDatePicker @bind-Value="@intervento.DataIntervento" DateFormat="dd/MM/yyyy HH:mm" ShowTime="true" Style="width: 100%;" />
+            </div>
+
+            <div class="mb-3">
+                <RadzenLabel Text="Stato" Style="width: 100%; display: block;" />
+                <RadzenDropDown @bind-Value="@intervento.Stato" Data="@stati" Style="width: 100%;" />
+            </div>
+
+            <div class="d-flex justify-content-end gap-2 mt-4">
+                <RadzenButton ButtonStyle="ButtonStyle.Light" Text="Annulla" Click="@Annulla" />
+                <RadzenButton ButtonType="ButtonType.Submit" ButtonStyle="ButtonStyle.Primary" Text="Salva Modifiche" />
+            </div>
+        </EditForm>
+    }
+</RadzenCard>
+
+@code {
+    [Parameter] public int Id { get; set; }
+
+    private Intervento? intervento;
+    private List<Impianto>? impianti;
+    private List<string> stati = new List<string> { "In attesa", "In corso", "Completato", "Annullato" };
+
+    private const string STORAGE_KEY_IMPIANTI = "lista_impianti";
+    private const string STORAGE_KEY_INTERVENTI = "lista_interventi";
+    private const string CODA_OFFLINE_KEY = "coda_interventi_offline";
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            impianti = await LocalStorage.GetItemAsync<List<Impianto>>(STORAGE_KEY_IMPIANTI);
+
+            var interventiSalvati = await LocalStorage.GetItemAsync<List<Intervento>>(STORAGE_KEY_INTERVENTI);
+            intervento = interventiSalvati?.FirstOrDefault(i => i.Id == Id);
+
+            if (intervento == null)
+            {
+                try
+                {
+                    intervento = await Http.GetFromJsonAsync<Intervento>($"api/interventi/{Id}");
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"Errore nel recupero intervento: {ex.Message}");
+                }
+            }
+
+            StateHasChanged();
+        }
+    }
+
+    private async Task SalvaModifiche()
+    {
+        if (intervento == null) return;
+
+        // Se l'elemento è stato creato offline, aggiorna direttamente la coda dei nuovi elementi
+        if (intervento.IsNuovoOffline || intervento.Id < 0)
+        {
+            await AggiornaCodaOffline(intervento);
+        }
+        else
+        {
+            try
+            {
+                var response = await Http.PutAsJsonAsync($"api/interventi/{intervento.Id}", intervento);
+                if (!response.IsSuccessStatusCode)
+                {
+                    await AggiornaCodaOffline(intervento);
+                }
+            }
+            catch (Exception ex) when (ex is HttpRequestException || ex is TaskCanceledException)
+            {
+                await AggiornaCodaOffline(intervento);
+            }
+        }
+
+        // Aggiorna la vista locale immediata
+        var interventiSalvati = await LocalStorage.GetItemAsync<List<Intervento>>(STORAGE_KEY_INTERVENTI) ?? new List<Intervento>();
+        var index = interventiSalvati.FindIndex(i => i.Id == intervento.Id);
+        if (index != -1)
+        {
+            interventiSalvati[index] = intervento;
+        }
+        else
+        {
+            interventiSalvati.Add(intervento);
+        }
+
+        await LocalStorage.SetItemAsync(STORAGE_KEY_INTERVENTI, interventiSalvati);
+        NavigationManager.NavigateTo("/interventi");
+    }
+
+    private async Task AggiornaCodaOffline(Intervento intv)
+    {
+        var coda = await LocalStorage.GetItemAsync<List<Intervento>>(CODA_OFFLINE_KEY) ?? new List<Intervento>();
+        var indexCoda = coda.FindIndex(i => i.Id == intv.Id);
+        if (indexCoda != -1)
+        {
+            coda[indexCoda] = intv;
+        }
+        else
+        {
+            coda.Add(intv);
+        }
+        await LocalStorage.SetItemAsync(CODA_OFFLINE_KEY, coda);
+    }
+
+    private void Annulla() => NavigationManager.NavigateTo("/interventi");
+}

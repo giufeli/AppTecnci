@@ -1,0 +1,128 @@
+﻿@page "/impianti/nuovo"
+@using System.Net.Http.Json
+@inject ILocalStorageService LocalStorage
+@inject NavigationManager NavigationManager
+@inject HttpClient Http
+
+<PageTitle>Nuovo Impianto</PageTitle>
+
+<RadzenCard Style="max-width: 600px; margin: 2rem auto;">
+    <RadzenText TextStyle="TextStyle.H5" TagName="TagName.H2" Class="mb-4">
+        Inserisci Nuovo Impianto
+    </RadzenText>
+
+    <EditForm Model="@nuovoImpianto" OnValidSubmit="@SalvaImpianto">
+        <DataAnnotationsValidator />
+        <div class="text-danger mb-3">
+            <ValidationSummary />
+        </div>
+
+        <div class="mb-3">
+            <RadzenLabel Text="Nome Impianto" Style="width: 100%; display: block;" />
+            <RadzenTextBox @bind-Value="@nuovoImpianto.Nome" Style="width: 100%;" />
+        </div>
+
+        <div class="mb-3">
+            <RadzenLabel Text="Indirizzo" Style="width: 100%; display: block;" />
+            <RadzenTextBox @bind-Value="@nuovoImpianto.Indirizzo" Style="width: 100%;" />
+        </div>
+
+        <div class="mb-3">
+            <RadzenLabel Text="Descrizione" Style="width: 100%; display: block;" />
+            <RadzenTextArea @bind-Value="@nuovoImpianto.Descrizione" Style="width: 100%;" Rows="3" />
+        </div>
+
+        <!-- Caricamento Cartina -->
+        <div class="mb-3">
+            <RadzenLabel Text="Cartina Impianto" Style="width: 100%; display: block;" />
+            <InputFile OnChange="@OnFileChange" accept="image/*" class="form-control" />
+
+            @if (!string.IsNullOrEmpty(nuovoImpianto.CartinaBase64))
+            {
+                <div class="mt-2">
+                    <img src="@nuovoImpianto.CartinaBase64" style="max-height: 150px; border-radius: 8px; border: 1px solid #ccc;" />
+                </div>
+            }
+        </div>
+
+        <div class="d-flex justify-content-end gap-2 mt-4">
+            <RadzenButton ButtonStyle="ButtonStyle.Light" Text="Annulla" Click="@Annulla" />
+            <RadzenButton ButtonType="ButtonType.Submit" ButtonStyle="ButtonStyle.Primary" Text="Salva" />
+        </div>
+    </EditForm>
+</RadzenCard>
+
+@code {
+    private Impianto nuovoImpianto = new Impianto();
+    private const string STORAGE_KEY_IMPIANTI = "lista_impianti";
+    private const string CODA_OFFLINE_KEY = "coda_impianti_offline";
+
+    private async Task OnFileChange(InputFileChangeEventArgs e)
+    {
+        var file = e.File;
+        if (file != null)
+        {
+            var resizedFile = await file.RequestImageFileAsync("image/png", 800, 800);
+            var buffer = new byte[resizedFile.Size];
+
+            using (var stream = resizedFile.OpenReadStream(maxAllowedSize: 1024 * 1024 * 5))
+            {
+                await stream.ReadAsync(buffer);
+            }
+
+            nuovoImpianto.CartinaBase64 = $"data:image/png;base64,{Convert.ToBase64String(buffer)}";
+        }
+    }
+
+    private async Task SalvaImpianto()
+    {
+        try
+        {
+            var response = await Http.PostAsJsonAsync("api/impianti", nuovoImpianto);
+            if (response.IsSuccessStatusCode)
+            {
+                Impianto? creato = null;
+                try
+                {
+                    creato = await response.Content.ReadFromJsonAsync<Impianto>();
+                }
+                catch { }
+
+                var impiantoDefinitivo = creato ?? nuovoImpianto;
+                impiantoDefinitivo.IsNuovoOffline = false;
+                await AggiornaLocalStorageEChiudi(impiantoDefinitivo);
+            }
+        }
+        catch (Exception ex) when (ex is HttpRequestException || ex is TaskCanceledException)
+        {
+            var impiantiSalvati = await LocalStorage.GetItemAsync<List<Impianto>>(STORAGE_KEY_IMPIANTI) ?? new List<Impianto>();
+            
+            // Genera un ID temporaneo negativo per la vista locale (es. -1, -2)
+            int minId = impiantiSalvati.Where(i => i.Id < 0).Select(i => i.Id).DefaultIfEmpty(0).Min();
+            int tempId = minId - 1;
+
+            // Prepara l'oggetto con il flag IsNuovoOffline = true
+            nuovoImpianto.Id = tempId;
+            nuovoImpianto.IsNuovoOffline = true;
+            nuovoImpianto.Sincronizzato = false;
+
+            // Salva nella coda delle POST
+            var coda = await LocalStorage.GetItemAsync<List<Impianto>>(CODA_OFFLINE_KEY) ?? new List<Impianto>();
+            coda.Add(nuovoImpianto);
+            await LocalStorage.SetItemAsync(CODA_OFFLINE_KEY, coda);
+
+            await AggiornaLocalStorageEChiudi(nuovoImpianto);
+        }
+    }
+
+    private async Task AggiornaLocalStorageEChiudi(Impianto impiantoDaAggiungere)
+    {
+        var impiantiSalvati = await LocalStorage.GetItemAsync<List<Impianto>>(STORAGE_KEY_IMPIANTI) ?? new List<Impianto>();
+        impiantiSalvati.Add(impiantoDaAggiungere);
+        await LocalStorage.SetItemAsync(STORAGE_KEY_IMPIANTI, impiantiSalvati);
+
+        NavigationManager.NavigateTo("/impianti");
+    }
+
+    private void Annulla() => NavigationManager.NavigateTo("/impianti");
+}

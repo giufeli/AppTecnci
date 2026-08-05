@@ -1,0 +1,181 @@
+﻿@page "/interventi"
+@using System.Net.Http.Json
+@inject ILocalStorageService LocalStorage
+@inject HttpClient Http
+@inject NavigationManager NavigationManager
+@inject DialogService DialogService
+
+<div class="d-flex justify-content-between mb-3">
+    <h3>Gestione Interventi</h3>
+    <RadzenButton Icon="add" Text="Nuovo Intervento" ButtonStyle="ButtonStyle.Primary" Click="@(() => NavigationManager.NavigateTo("/interventi/nuovo"))" />
+</div>
+
+<RadzenDataGrid Data="@interventi" TItem="Intervento" AllowPaging="true" PageSize="5">
+    <Columns>
+        <RadzenDataGridColumn Property="Id" Title="ID" Width="70px" />
+        <RadzenDataGridColumn Property="Titolo" Title="Titolo" />
+
+        <RadzenDataGridColumn Title="Impianto">
+            <Template Context="intervento">
+                @GetNomeImpianto(intervento.ImpiantoId)
+            </Template>
+        </RadzenDataGridColumn>
+
+        <RadzenDataGridColumn Property="Descrizione" Title="Descrizione" />
+
+        <RadzenDataGridColumn Property="DataIntervento" Title="Data">
+            <Template Context="intervento">
+                @intervento.DataIntervento.ToString("dd/MM/yyyy HH:mm")
+            </Template>
+        </RadzenDataGridColumn>
+
+        <RadzenDataGridColumn Property="Stato" Title="Stato">
+            <Template Context="intervento">
+                <RadzenBadge BadgeStyle="@GetBadgeStyle(intervento.Stato)" Text="@intervento.Stato" />
+            </Template>
+        </RadzenDataGridColumn>
+
+        <RadzenDataGridColumn Title="Azioni" Width="130px" Sortable="false">
+            <Template Context="intervento">
+                <RadzenButton Icon="edit" ButtonStyle="ButtonStyle.Warning" Size="ButtonSize.Small" Class="me-1" Click="@(() => NavigationManager.NavigateTo($"/interventi/modifica/{intervento.Id}"))" />
+                <RadzenButton Icon="delete" ButtonStyle="ButtonStyle.Danger" Size="ButtonSize.Small" Click="@(() => EliminaIntervento(intervento))" />
+            </Template>
+        </RadzenDataGridColumn>
+    </Columns>
+</RadzenDataGrid>
+
+@code {
+    private List<Intervento>? interventi;
+    private List<Impianto>? impianti;
+
+    private const string STORAGE_KEY_INTERVENTI = "lista_interventi";
+    private const string STORAGE_KEY_IMPIANTI = "lista_impianti";
+    private const string CODA_OFFLINE_KEY = "coda_interventi_offline";
+    private const string CODA_ELIMINAZIONI_INTERVENTI_KEY = "coda_eliminazioni_interventi_offline";
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            var cachedImpianti = await LocalStorage.GetItemAsync<List<Impianto>>(STORAGE_KEY_IMPIANTI);
+            if (cachedImpianti != null) impianti = cachedImpianti;
+
+            var cachedInterventi = await LocalStorage.GetItemAsync<List<Intervento>>(STORAGE_KEY_INTERVENTI);
+            if (cachedInterventi != null) interventi = cachedInterventi;
+
+            StateHasChanged();
+            await CaricaDati();
+        }
+    }
+
+    private async Task CaricaDati()
+    {
+        try
+        {
+            var nuoviImpianti = await Http.GetFromJsonAsync<List<Impianto>>("api/impianti");
+            impianti = nuoviImpianti ?? new List<Impianto>();
+
+            if (impianti.Count == 0)
+                await LocalStorage.RemoveItemAsync(STORAGE_KEY_IMPIANTI);
+            else
+                await LocalStorage.SetItemAsync(STORAGE_KEY_IMPIANTI, impianti);
+
+            var nuoviInterventi = await Http.GetFromJsonAsync<List<Intervento>>("api/interventi");
+            var interventiOfflineInCoda = await LocalStorage.GetItemAsync<List<Intervento>>(CODA_OFFLINE_KEY) ?? new List<Intervento>();
+
+            interventi = nuoviInterventi ?? new List<Intervento>();
+            if (interventiOfflineInCoda.Count > 0)
+            {
+                interventi.AddRange(interventiOfflineInCoda);
+            }
+
+            if (interventi.Count == 0)
+                await LocalStorage.RemoveItemAsync(STORAGE_KEY_INTERVENTI);
+            else
+                await LocalStorage.SetItemAsync(STORAGE_KEY_INTERVENTI, interventi);
+
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Errore caricamento da API: {ex.Message}");
+        }
+    }
+
+    private string GetNomeImpianto(int impiantoId)
+    {
+        var imp = impianti?.FirstOrDefault(i => i.Id == impiantoId);
+        return imp != null ? imp.Nome : $"Impianto #{impiantoId}";
+    }
+
+    private BadgeStyle GetBadgeStyle(string stato) => stato switch
+    {
+        "Completato" => BadgeStyle.Success,
+        "In corso" => BadgeStyle.Warning,
+        "Annullato" => BadgeStyle.Danger,
+        _ => BadgeStyle.Info
+    };
+
+    private async Task EliminaIntervento(Intervento intervento)
+    {
+        bool? confermato = await DialogService.Confirm(
+            $"Sei sicuro di voler eliminare l'intervento '{intervento.Titolo}'?",
+            "Conferma Eliminazione",
+            new ConfirmOptions { OkButtonText = "Sì", CancelButtonText = "No" }
+        );
+
+        if (confermato == true)
+        {
+            // Se l'intervento è stato creato offline
+            if (intervento.IsNuovoOffline || intervento.Id < 0)
+            {
+                var codaNuovi = await LocalStorage.GetItemAsync<List<Intervento>>(CODA_OFFLINE_KEY) ?? new List<Intervento>();
+                codaNuovi.RemoveAll(i => i.Id == intervento.Id || i.Titolo == intervento.Titolo);
+                await LocalStorage.SetItemAsync(CODA_OFFLINE_KEY, codaNuovi);
+            }
+            else
+            {
+                try
+                {
+                    var response = await Http.DeleteAsync($"api/interventi/{intervento.Id}");
+                    if (!response.IsSuccessStatusCode)
+                    {
+                        await AccodaEliminazioneOffline(intervento.Id);
+                    }
+                }
+                catch (Exception)
+                {
+                    await AccodaEliminazioneOffline(intervento.Id);
+                }
+            }
+
+            // Aggiorna la vista locale immediata
+            if (interventi != null)
+            {
+                interventi.RemoveAll(i => i.Id == intervento.Id);
+                if (interventi.Count == 0)
+                {
+                    await LocalStorage.RemoveItemAsync(STORAGE_KEY_INTERVENTI);
+                }
+                else
+                {
+                    await LocalStorage.SetItemAsync(STORAGE_KEY_INTERVENTI, interventi);
+                }
+                StateHasChanged();
+            }
+        }
+    }
+
+    private async Task AccodaEliminazioneOffline(int id)
+    {
+        if (id > 0)
+        {
+            var codaEliminazioni = await LocalStorage.GetItemAsync<List<int>>(CODA_ELIMINAZIONI_INTERVENTI_KEY) ?? new List<int>();
+            if (!codaEliminazioni.Contains(id))
+            {
+                codaEliminazioni.Add(id);
+                await LocalStorage.SetItemAsync(CODA_ELIMINAZIONI_INTERVENTI_KEY, codaEliminazioni);
+            }
+        }
+    }
+}
