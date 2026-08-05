@@ -10,7 +10,7 @@
     <RadzenButton Icon="add" Text="Nuovo Intervento" ButtonStyle="ButtonStyle.Primary" Click="@(() => NavigationManager.NavigateTo("/interventi/nuovo"))" />
 </div>
 
-<RadzenDataGrid Data="@interventi" TItem="Intervento" AllowPaging="true" PageSize="5">
+<RadzenDataGrid @ref="grid" Data="@interventi" TItem="Intervento" AllowPaging="true" PageSize="5">
     <Columns>
         <RadzenDataGridColumn Property="Id" Title="ID" Width="70px" />
         <RadzenDataGridColumn Property="Titolo" Title="Titolo" />
@@ -47,7 +47,7 @@
 @code {
     private List<Intervento>? interventi;
     private List<Impianto>? impianti;
-
+    private RadzenDataGrid<Intervento>? grid;
     private const string STORAGE_KEY_INTERVENTI = "lista_interventi";
     private const string STORAGE_KEY_IMPIANTI = "lista_impianti";
     private const string CODA_OFFLINE_KEY = "coda_interventi_offline";
@@ -162,6 +162,10 @@
                     await LocalStorage.SetItemAsync(STORAGE_KEY_INTERVENTI, interventi);
                 }
                 StateHasChanged();
+                if (grid != null)
+                {
+                    await grid.Reload();
+                }
             }
         }
     }

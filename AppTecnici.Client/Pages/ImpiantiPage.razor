@@ -10,7 +10,7 @@
     <RadzenButton Icon="add" Text="Nuovo Impianto" ButtonStyle="ButtonStyle.Primary" Click="@(() => NavigationManager.NavigateTo("/impianti/nuovo"))" />
 </div>
 
-<RadzenDataGrid Data="@impianti" TItem="Impianto" AllowPaging="true" PageSize="5">
+<RadzenDataGrid @ref="grid" Data="@impianti" TItem="Impianto" AllowPaging="true" PageSize="5">
     <Columns>
         <RadzenDataGridColumn Property="CartinaBase64" Title="Cartina" Width="80px" Sortable="false">
             <Template Context="impianto">
@@ -51,6 +51,7 @@
 
 @code {
     private List<Impianto>? impianti;
+    private RadzenDataGrid<Impianto>? grid;
     private const string STORAGE_KEY = "lista_impianti";
     private const string CODA_OFFLINE_KEY = "coda_impianti_offline";
     private const string CODA_ELIMINAZIONI_IMPIANTI_KEY = "coda_eliminazioni_impianti_offline";
@@ -158,6 +159,11 @@
                     await LocalStorage.SetItemAsync(STORAGE_KEY, impianti);
                 }
                 StateHasChanged();
+
+                if (grid != null)
+                {
+                    await grid.Reload();
+                }
             }
         }
     }
