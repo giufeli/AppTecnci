@@ -5,10 +5,15 @@
 @using Microsoft.AspNetCore.Components.Web
 @using Microsoft.AspNetCore.Components.Web.Virtualization
 @using Microsoft.AspNetCore.Components.WebAssembly.Http
+@using Microsoft.AspNetCore.Components.Authorization
 @using Microsoft.JSInterop
 @using AppTecnici.Client
 @using AppTecnici.Client.Layout
 @using Radzen
 @using Radzen.Blazor
 @using AppTecnici.Shared.Models
+@using AppTecnici.Client.Services
 @using Blazored.LocalStorage
+@using Microsoft.AspNetCore.Authorization
+@attribute [Authorize]
+

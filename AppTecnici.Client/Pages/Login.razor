@@ -1,0 +1,75 @@
+﻿@page "/login"
+@attribute [AllowAnonymous]
+@using AppTecnici.Client.Services
+@inject AuthenticationStateProvider AuthStateProvider
+@inject NavigationManager NavigationManager
+
+<PageTitle>Login Aziendale</PageTitle>
+
+<div class="d-flex justify-content-center align-items-center" style="min-height: 90vh;">
+    <RadzenCard Style="width: 100%; max-width: 420px; padding: 2.5rem; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.1);">
+        <div class="text-center mb-4">
+            <RadzenIcon Icon="account_circle" Style="font-size: 3.5rem; color: #1a73e8;" />
+            <RadzenText TextStyle="TextStyle.H4" TagName="TagName.H2" Class="mt-2 mb-0" Style="font-weight: 600;">
+                Accedi
+            </RadzenText>
+            <RadzenText TextStyle="TextStyle.Body2" Style="color: #6c757d;">
+                Inserisci le credenziali aziendali
+            </RadzenText>
+        </div>
+
+        @if (!string.IsNullOrEmpty(errorMessage))
+        {
+            <RadzenAlert AlertStyle="AlertStyle.Danger" Variant="Variant.Flat" Class="mb-3" ShowIcon="true">
+                @errorMessage
+            </RadzenAlert>
+        }
+
+        <EditForm Model="@loginModel" OnValidSubmit="@EseguiLogin">
+            <div class="mb-3">
+                <RadzenLabel Text="Username" Style="display: block; font-weight: 500;" />
+                <RadzenTextBox @bind-Value="@loginModel.Username" Style="width: 100%;" Placeholder="es. tecnico.aziendale" />
+            </div>
+
+            <div class="mb-4">
+                <RadzenLabel Text="Password" Style="display: block; font-weight: 500;" />
+                <RadzenPassword @bind-Value="@loginModel.Password" Style="width: 100%;" Placeholder="••••••••" />
+            </div>
+
+            <RadzenButton ButtonType="ButtonType.Submit"
+                          Text="Accedi"
+                          ButtonStyle="ButtonStyle.Primary"
+                          Style="width: 100%; height: 42px; font-weight: 600;" />
+        </EditForm>
+    </RadzenCard>
+</div>
+
+@code {
+    private LoginModel loginModel = new LoginModel();
+    private string? errorMessage;
+
+    private const string AZIENDA_USER = "tecnico@maintenance.it";
+    private const string AZIENDA_PASS = "admin123";
+
+    private async Task EseguiLogin()
+    {
+        errorMessage = null;
+
+        if (loginModel.Username == AZIENDA_USER && loginModel.Password == AZIENDA_PASS)
+        {
+            var customAuth = (CustomAuthenticationStateProvider)AuthStateProvider;
+            await customAuth.MarkUserAsAuthenticated(loginModel.Username);
+            NavigationManager.NavigateTo("/");
+        }
+        else
+        {
+            errorMessage = "Credenziali non valide. Riprova con quelle aziendali.";
+        }
+    }
+
+    public class LoginModel
+    {
+        public string Username { get; set; } = string.Empty;
+        public string Password { get; set; } = string.Empty;
+    }
+}
