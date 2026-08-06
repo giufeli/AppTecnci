@@ -10,39 +10,41 @@
     <RadzenButton Icon="add" Text="Nuovo Intervento" ButtonStyle="ButtonStyle.Primary" Click="@(() => NavigationManager.NavigateTo("/interventi/nuovo"))" />
 </div>
 
-<RadzenDataGrid @ref="grid" Data="@interventi" TItem="Intervento" AllowPaging="true" PageSize="5">
-    <Columns>
-        <RadzenDataGridColumn Property="Id" Title="ID" Width="70px" />
-        <RadzenDataGridColumn Property="Titolo" Title="Titolo" />
+<div style="overflow-x: auto; width: 100%;">
+    <RadzenDataGrid @ref="grid" Data="@interventi" TItem="Intervento" AllowPaging="true" PageSize="5" Style="min-width: 800px;">
+        <Columns>
+            <RadzenDataGridColumn Property="Id" Title="ID" Width="70px" />
+            <RadzenDataGridColumn Property="Titolo" Title="Titolo" />
 
-        <RadzenDataGridColumn Title="Impianto">
-            <Template Context="intervento">
-                @GetNomeImpianto(intervento.ImpiantoId)
-            </Template>
-        </RadzenDataGridColumn>
+            <RadzenDataGridColumn Title="Impianto">
+                <Template Context="intervento">
+                    @GetNomeImpianto(intervento.ImpiantoId)
+                </Template>
+            </RadzenDataGridColumn>
 
-        <RadzenDataGridColumn Property="Descrizione" Title="Descrizione" />
+            <RadzenDataGridColumn Property="Descrizione" Title="Descrizione" />
 
-        <RadzenDataGridColumn Property="DataIntervento" Title="Data">
-            <Template Context="intervento">
-                @intervento.DataIntervento.ToString("dd/MM/yyyy HH:mm")
-            </Template>
-        </RadzenDataGridColumn>
+            <RadzenDataGridColumn Property="DataIntervento" Title="Data">
+                <Template Context="intervento">
+                    @intervento.DataIntervento.ToString("dd/MM/yyyy HH:mm")
+                </Template>
+            </RadzenDataGridColumn>
 
-        <RadzenDataGridColumn Property="Stato" Title="Stato">
-            <Template Context="intervento">
-                <RadzenBadge BadgeStyle="@GetBadgeStyle(intervento.Stato)" Text="@intervento.Stato" />
-            </Template>
-        </RadzenDataGridColumn>
+            <RadzenDataGridColumn Property="Stato" Title="Stato">
+                <Template Context="intervento">
+                    <RadzenBadge BadgeStyle="@GetBadgeStyle(intervento.Stato)" Text="@intervento.Stato" />
+                </Template>
+            </RadzenDataGridColumn>
 
-        <RadzenDataGridColumn Title="Azioni" Width="130px" Sortable="false">
-            <Template Context="intervento">
-                <RadzenButton Icon="edit" ButtonStyle="ButtonStyle.Warning" Size="ButtonSize.Small" Class="me-1" Click="@(() => NavigationManager.NavigateTo($"/interventi/modifica/{intervento.Id}"))" />
-                <RadzenButton Icon="delete" ButtonStyle="ButtonStyle.Danger" Size="ButtonSize.Small" Click="@(() => EliminaIntervento(intervento))" />
-            </Template>
-        </RadzenDataGridColumn>
-    </Columns>
-</RadzenDataGrid>
+            <RadzenDataGridColumn Title="Azioni" Width="130px" Sortable="false">
+                <Template Context="intervento">
+                    <RadzenButton Icon="edit" ButtonStyle="ButtonStyle.Warning" Size="ButtonSize.Small" Class="me-1" Click="@(() => NavigationManager.NavigateTo($"/interventi/modifica/{intervento.Id}"))" />
+                    <RadzenButton Icon="delete" ButtonStyle="ButtonStyle.Danger" Size="ButtonSize.Small" Click="@(() => EliminaIntervento(intervento))" />
+                </Template>
+            </RadzenDataGridColumn>
+        </Columns>
+    </RadzenDataGrid>
+</div>
 
 @code {
     private List<Intervento>? interventi;

@@ -2,17 +2,24 @@
 @using Radzen.Blazor
 @using AppTecnici.Client.Services
 
-
-<div class="d-flex flex-column h-100 justify-content-between">
+<div class="d-flex flex-column h-100 justify-content-between" @onclick="ChiudiMenuMobile">
     <RadzenPanelMenu Style="height: auto;">
         <RadzenPanelMenuItem Text="Home" Icon="home" Path="" />
         <RadzenPanelMenuItem Text="Impianti" Icon="build" Path="impianti" />
         <RadzenPanelMenuItem Text="Interventi" Icon="assignment" Path="interventi" />
     </RadzenPanelMenu>
-
-    
 </div>
 
 @code {
-    
+    // Questo serve per far chiudere il menu mobile quando si clicca su un link del menu.
+    [Parameter]
+    public EventCallback OnMenuClicked { get; set; }
+    private async Task ChiudiMenuMobile()
+    {
+        
+        if (OnMenuClicked.HasDelegate)
+        {
+            await OnMenuClicked.InvokeAsync();
+        }
+    }
 }

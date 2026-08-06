@@ -40,7 +40,7 @@
             </RadzenHeader>
 
             <RadzenSidebar @bind-Expanded="@sidebarExpanded">
-                <NavMenu />
+                <NavMenu OnMenuClicked="NascondiSidebar" />
             </RadzenSidebar>
 
             <RadzenBody>
@@ -234,5 +234,11 @@
             inSincronizzazione = false;
             await ControllaCodaOffline();
         }
+    }
+
+    private void NascondiSidebar()
+    {
+        // Questo forza la chiusura della barra laterale quando viene cliccato un link
+        sidebarExpanded = false;
     }
 }

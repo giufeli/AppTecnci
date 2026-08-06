@@ -10,44 +10,46 @@
     <RadzenButton Icon="add" Text="Nuovo Impianto" ButtonStyle="ButtonStyle.Primary" Click="@(() => NavigationManager.NavigateTo("/impianti/nuovo"))" />
 </div>
 
-<RadzenDataGrid @ref="grid" Data="@impianti" TItem="Impianto" AllowPaging="true" PageSize="5">
-    <Columns>
-        <RadzenDataGridColumn Property="CartinaBase64" Title="Cartina" Width="80px" Sortable="false">
-            <Template Context="impianto">
-                @if (!string.IsNullOrEmpty(impianto.CartinaBase64))
-                {
-                    <RadzenButton Icon="image"
-                                  ButtonStyle="ButtonStyle.Info"
-                                  Size="ButtonSize.Small"
-                                  Variant="Variant.Flat"
-                                  Click="@(() => ApriCartina(impianto))"
-                                  ToolTip="Visualizza cartina" />
-                }
-                else
-                {
-                    <RadzenButton Icon="hide_image"
-                                  ButtonStyle="ButtonStyle.Secondary"
-                                  Size="ButtonSize.Small"
-                                  Variant="Variant.Flat"
-                                  Disabled="true"
-                                  ToolTip="Nessuna cartina disponibile" />
-                }
-            </Template>
-        </RadzenDataGridColumn>
+<div style="overflow-x: auto; width: 100%;">
+    <RadzenDataGrid @ref="grid" Data="@impianti" TItem="Impianto" AllowPaging="true" PageSize="5" Style="min-width: 700px;">
+        <Columns>
+            <RadzenDataGridColumn Property="CartinaBase64" Title="Cartina" Width="80px" Sortable="false">
+                <Template Context="impianto">
+                    @if (!string.IsNullOrEmpty(impianto.CartinaBase64))
+                    {
+                        <RadzenButton Icon="image"
+                                      ButtonStyle="ButtonStyle.Info"
+                                      Size="ButtonSize.Small"
+                                      Variant="Variant.Flat"
+                                      Click="@(() => ApriCartina(impianto))"
+                                      ToolTip="Visualizza cartina" />
+                    }
+                    else
+                    {
+                        <RadzenButton Icon="hide_image"
+                                      ButtonStyle="ButtonStyle.Secondary"
+                                      Size="ButtonSize.Small"
+                                      Variant="Variant.Flat"
+                                      Disabled="true"
+                                      ToolTip="Nessuna cartina disponibile" />
+                    }
+                </Template>
+            </RadzenDataGridColumn>
 
-        <RadzenDataGridColumn Property="Id" Title="ID" Width="70px" />
-        <RadzenDataGridColumn Property="Nome" Title="Nome Impianto" />
-        <RadzenDataGridColumn Property="Indirizzo" Title="Indirizzo" />
-        <RadzenDataGridColumn Property="Descrizione" Title="Descrizione" />
+            <RadzenDataGridColumn Property="Id" Title="ID" Width="70px" />
+            <RadzenDataGridColumn Property="Nome" Title="Nome Impianto" />
+            <RadzenDataGridColumn Property="Indirizzo" Title="Indirizzo" />
+            <RadzenDataGridColumn Property="Descrizione" Title="Descrizione" />
 
-        <RadzenDataGridColumn Title="Azioni" Width="130px" Sortable="false">
-            <Template Context="impianto">
-                <RadzenButton Icon="edit" ButtonStyle="ButtonStyle.Warning" Size="ButtonSize.Small" Class="me-1" Click="@(() => NavigationManager.NavigateTo($"/impianti/modifica/{impianto.Id}"))" />
-                <RadzenButton Icon="delete" ButtonStyle="ButtonStyle.Danger" Size="ButtonSize.Small" Click="@(() => EliminaImpianto(impianto))" />
-            </Template>
-        </RadzenDataGridColumn>
-    </Columns>
-</RadzenDataGrid>
+            <RadzenDataGridColumn Title="Azioni" Width="130px" Sortable="false">
+                <Template Context="impianto">
+                    <RadzenButton Icon="edit" ButtonStyle="ButtonStyle.Warning" Size="ButtonSize.Small" Class="me-1" Click="@(() => NavigationManager.NavigateTo($"/impianti/modifica/{impianto.Id}"))" />
+                    <RadzenButton Icon="delete" ButtonStyle="ButtonStyle.Danger" Size="ButtonSize.Small" Click="@(() => EliminaImpianto(impianto))" />
+                </Template>
+            </RadzenDataGridColumn>
+        </Columns>
+    </RadzenDataGrid>
+</div>
 
 @code {
     private List<Impianto>? impianti;
