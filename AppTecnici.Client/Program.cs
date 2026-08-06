@@ -5,13 +5,17 @@ using Microsoft.AspNetCore.Components.WebAssembly.Hosting;
 using Microsoft.AspNetCore.Components.Authorization;
 using Radzen;
 using Blazored.LocalStorage;
+using Blazored.SessionStorage;
 
 var builder = WebAssemblyHostBuilder.CreateDefault(args);
-builder.RootComponents.Add<App>("#app");
+
+// Aggancia l'applicazione C# al file HTML
+builder.RootComponents.Add<App>("#app"); 
 builder.RootComponents.Add<HeadOutlet>("head::after");
 
 // LocalStorage
 builder.Services.AddBlazoredLocalStorage();
+builder.Services.AddBlazoredSessionStorage();
 
 // Supporto Autenticazione Blazor
 builder.Services.AddOptions();

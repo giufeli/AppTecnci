@@ -24,7 +24,6 @@ builder.Services.AddCors(options =>
     });
 });
 
-// 3. Controller + aumento limite dimensione JSON per le immagini in Base64
 builder.Services.AddControllers()
     .AddJsonOptions(options =>
     {
@@ -43,11 +42,7 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
-
-// 4. Attivazione middleware CORS (da inserire prima di Authorization e MapControllers)
 app.UseCors("AllowClient");
-
 app.UseAuthorization();
 app.MapControllers();
-
 app.Run();
