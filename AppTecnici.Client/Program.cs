@@ -23,10 +23,7 @@ builder.Services.AddAuthorizationCore();
 builder.Services.AddScoped<AuthenticationStateProvider, CustomAuthenticationStateProvider>();
 
 // Configurazione HttpClient con l'URL del Server
-builder.Services.AddScoped(sp => new HttpClient
-{
-    BaseAddress = new Uri("https://localhost:7248/")
-});
+builder.Services.AddScoped(sp => new HttpClient { BaseAddress = new Uri(builder.HostEnvironment.BaseAddress) });
 
 // Registrazione componenti Radzen
 builder.Services.AddRadzenComponents();
