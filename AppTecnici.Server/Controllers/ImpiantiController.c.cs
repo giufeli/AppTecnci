@@ -16,14 +16,14 @@ namespace AppTecnici.Server.Controllers
             _context = context;
         }
 
-        // GET:
+        // GET: api/impianti
         [HttpGet]
         public async Task<ActionResult<IEnumerable<Impianto>>> GetImpianti()
         {
             return await _context.Impianti.ToListAsync();
         }
 
-        // POST:
+        // POST: api/impianti
         [HttpPost]
         public async Task<ActionResult<Impianto>> PostImpianto(Impianto impianto)
         {
@@ -32,7 +32,7 @@ namespace AppTecnici.Server.Controllers
             return CreatedAtAction(nameof(GetImpianti), new { id = impianto.Id }, impianto);
         }
 
-        // DELETE:
+        // DELETE: api/impianti
         [HttpDelete("{id}")]
         public async Task<IActionResult> DeleteImpianto(int id)
         {
@@ -51,7 +51,7 @@ namespace AppTecnici.Server.Controllers
             return NoContent();
         }
 
-        // PUT:
+        // PUT: api/impianti
         [HttpPut("{id}")]
         public async Task<IActionResult> PutImpianto(int id, Impianto impianto)
         {

@@ -6,7 +6,7 @@ namespace AppTecnici.Client.Services
 {
     public class CustomAuthenticationStateProvider : AuthenticationStateProvider
     {
-        private readonly ISessionStorageService _sessionStorage; // <-- Cambiato in SessionStorage
+        private readonly ISessionStorageService _sessionStorage;
 
         public CustomAuthenticationStateProvider(ISessionStorageService sessionStorage)
         {
