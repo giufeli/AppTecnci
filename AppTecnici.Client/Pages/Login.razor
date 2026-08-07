@@ -45,28 +45,35 @@
 </div>
 
 @code {
+    // Modello collegato al form di input per catturare le credenziali inserite dall'utente
     private LoginModel loginModel = new LoginModel();
     private string? errorMessage;
-
     private const string AZIENDA_USER = "tecnico@maintenance.it";
     private const string AZIENDA_PASS = "admin123";
 
+    // Valida le credenziali inserite e aggiorna lo stato di autenticazione dell'applicazione
     private async Task EseguiLogin()
     {
         errorMessage = null;
 
+        // Verifica la corrispondenza delle credenziali inserite con quelle aziendali
         if (loginModel.Username == AZIENDA_USER && loginModel.Password == AZIENDA_PASS)
         {
+            // Notifica il provider di autenticazione personalizzato dell'avvenuto login
             var customAuth = (CustomAuthenticationStateProvider)AuthStateProvider;
             await customAuth.MarkUserAsAuthenticated(loginModel.Username);
+            
+            // Reindirizza l'utente alla pagina principale/dashboard
             NavigationManager.NavigateTo("/");
         }
         else
         {
+            // Imposta il messaggio di errore da mostrare nel form
             errorMessage = "Credenziali non valide. Riprova con quelle aziendali.";
         }
     }
 
+    // Classe di supporto per il binding dei dati del form di login
     public class LoginModel
     {
         public string Username { get; set; } = string.Empty;

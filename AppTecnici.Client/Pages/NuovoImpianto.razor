@@ -54,14 +54,17 @@
 
 @code {
     private Impianto nuovoImpianto = new Impianto();
+    // Chiavi per la gestione della cache locale e della coda offline
     private const string STORAGE_KEY_IMPIANTI = "lista_impianti";
     private const string CODA_OFFLINE_KEY = "coda_impianti_offline";
 
+    // Gestisce il caricamento e il ridimensionamento della cartina convertendola in una stringa Base64
     private async Task OnFileChange(InputFileChangeEventArgs e)
     {
         var file = e.File;
         if (file != null)
         {
+            // Ridimensiona l'immagine fino a un massimo di 800x800 pixel per ottimizzare la memoria
             var resizedFile = await file.RequestImageFileAsync("image/png", 800, 800);
             var buffer = new byte[resizedFile.Size];
 
@@ -70,14 +73,17 @@
                 await stream.ReadAsync(buffer);
             }
 
+            // Salva la stringa data URI in Base64 nella proprietà dell'impianto
             nuovoImpianto.CartinaBase64 = $"data:image/png;base64,{Convert.ToBase64String(buffer)}";
         }
     }
 
+    // Invia il nuovo impianto all'API o lo salva in locale se il server non è raggiungibile
     private async Task SalvaImpianto()
     {
         try
         {
+            // Tenta l'inserimento via HTTP POST al server
             var response = await Http.PostAsJsonAsync("api/impianti", nuovoImpianto);
             if (response.IsSuccessStatusCode)
             {
@@ -88,6 +94,7 @@
                 }
                 catch { }
 
+                // Utilizza il record restituito dal server (con ID reale generato) e aggiorna la cache locale
                 var impiantoDefinitivo = creato ?? nuovoImpianto;
                 impiantoDefinitivo.IsNuovoOffline = false;
                 await AggiornaLocalStorageEChiudi(impiantoDefinitivo);
@@ -95,18 +102,19 @@
         }
         catch (Exception ex) when (ex is HttpRequestException || ex is TaskCanceledException)
         {
+            // Gestione del salvataggio offline in caso di mancanza di connessione
             var impiantiSalvati = await LocalStorage.GetItemAsync<List<Impianto>>(STORAGE_KEY_IMPIANTI) ?? new List<Impianto>();
             
-            // Genera un ID temporaneo negativo per la vista locale (es. -1, -2)
+            // Genera un ID temporaneo negativo progressivo (es. -1, -2) per non andare in conflitto con gli ID reali del DB
             int minId = impiantiSalvati.Where(i => i.Id < 0).Select(i => i.Id).DefaultIfEmpty(0).Min();
             int tempId = minId - 1;
 
-            // Prepara l'oggetto con il flag IsNuovoOffline = true
+            // Imposta i flag per identificare il record come creato offline
             nuovoImpianto.Id = tempId;
             nuovoImpianto.IsNuovoOffline = true;
             nuovoImpianto.Sincronizzato = false;
 
-            // Salva nella coda delle POST
+            // Inserisce il nuovo impianto nella coda delle creazioni pendenti
             var coda = await LocalStorage.GetItemAsync<List<Impianto>>(CODA_OFFLINE_KEY) ?? new List<Impianto>();
             coda.Add(nuovoImpianto);
             await LocalStorage.SetItemAsync(CODA_OFFLINE_KEY, coda);
@@ -115,6 +123,7 @@
         }
     }
 
+    // Aggiunge l'impianto alla lista visibile nel LocalStorage e ritorna alla pagina principale impianti
     private async Task AggiornaLocalStorageEChiudi(Impianto impiantoDaAggiungere)
     {
         var impiantiSalvati = await LocalStorage.GetItemAsync<List<Impianto>>(STORAGE_KEY_IMPIANTI) ?? new List<Impianto>();
@@ -124,5 +133,6 @@
         NavigationManager.NavigateTo("/impianti");
     }
 
+    // Annulla l'operazione di creazione e torna alla vista impianti
     private void Annulla() => NavigationManager.NavigateTo("/impianti");
 }

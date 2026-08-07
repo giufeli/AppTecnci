@@ -2,9 +2,11 @@
 @inject ILocalStorageService LocalStorage
 @inject HttpClient Http
 
+<!-- Contenitore dell'indicatore di sincronizzazione per la barra di intestazione -->
 <div class="d-flex align-items-center me-3">
     @if (elementiDaSincronizzare > 0)
     {
+        <!-- Pulsante attivo se ci sono elementi salvati in locale pronti per l'invio -->
         <RadzenButton Icon="sync"
                       Text="@($"Sincronizza ({elementiDaSincronizzare})")"
                       ButtonStyle="ButtonStyle.Warning"
@@ -15,17 +17,23 @@
     }
     else
     {
+        <!-- Badge di stato quando la memoria locale e il server sono allineati -->
         <RadzenBadge BadgeStyle="BadgeStyle.Success" Text="Online - Sincronizzato" />
     }
 </div>
 
 @code {
+    // Contatore degli elementi pendenti da inviare al server
     private int elementiDaSincronizzare = 0;
+    
+    // Indica se la procedura di sincronizzazione HTTP è attualmente in corso
     private bool inSincronizzazione = false;
 
+    // Chiavi per la lettura delle code offline da LocalStorage
     private const string CODA_IMPIANTI_KEY = "coda_impianti_offline";
     private const string CODA_INTERVENTI_KEY = "coda_interventi_offline";
 
+    // Al primo rendering della componente esegue la verifica della coda offline
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         if (firstRender)
@@ -34,6 +42,7 @@
         }
     }
 
+    // Ispeziona il LocalStorage e calcola il numero totale di elementi pendenti
     private async Task ControllaCodaOffline()
     {
         var codaImpianti = await LocalStorage.GetItemAsync<List<Impianto>>(CODA_IMPIANTI_KEY) ?? new();
@@ -43,6 +52,7 @@
         StateHasChanged();
     }
 
+    // Invia i dati salvati offline al database server tramite chiamate API HTTP POST
     private async Task SincronizzaDatiOffline()
     {
         inSincronizzazione = true;
@@ -50,23 +60,24 @@
 
         try
         {
-            // 1. Sincronizza Impianti
+            // 1. SINCRONIZZAZIONE IMPIANTI
             var codaImpianti = await LocalStorage.GetItemAsync<List<Impianto>>(CODA_IMPIANTI_KEY) ?? new();
             var impiantiRimasti = new List<Impianto>();
 
             foreach (var imp in codaImpianti)
             {
-                // Resettiamo l'ID temporaneo negativo prima dell'invio
+                // Azzera l'ID temporaneo prima dell'invio per permettere l'autoincremento su SQL
                 imp.Id = 0;
                 var res = await Http.PostAsJsonAsync("api/impianti", imp);
                 if (!res.IsSuccessStatusCode)
                 {
-                    impiantiRimasti.Add(imp); // Se fallisce lo rimettiamo in coda
+                    // Se l'invio fallisce, mantiene l'impianto in coda per il prossimo tentativo
+                    impiantiRimasti.Add(imp);
                 }
             }
             await LocalStorage.SetItemAsync(CODA_IMPIANTI_KEY, impiantiRimasti);
 
-            // 2. Sincronizza Interventi
+            // 2. SINCRONIZZAZIONE INTERVENTI
             var codaInterventi = await LocalStorage.GetItemAsync<List<Intervento>>(CODA_INTERVENTI_KEY) ?? new();
             var interventiRimasti = new List<Intervento>();
 
@@ -87,6 +98,7 @@
         }
         finally
         {
+            // Ripristina lo stato visivo e aggiorna il contatore degli elementi rimasti
             inSincronizzazione = false;
             await ControllaCodaOffline();
         }

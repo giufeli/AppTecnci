@@ -96,6 +96,7 @@
     private const string CODA_OFFLINE_KEY = "coda_interventi_offline";
     private const string CODA_ELIMINAZIONI_INTERVENTI_KEY = "coda_eliminazioni_interventi_offline";
 
+    // Al primo rendering carica istantaneamente la cache locale
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         if (firstRender)
@@ -111,6 +112,7 @@
         }
     }
 
+    // Scarica gli interventi e gli impianti dal server e unisce gli interventi creati offline
     private async Task CaricaDati()
     {
         try
@@ -132,6 +134,7 @@
                 interventi.AddRange(interventiOfflineInCoda);
             }
 
+            // Aggiorna la cache locale degli interventi per consultazioni successive o offline
             if (interventi.Count == 0)
                 await LocalStorage.RemoveItemAsync(STORAGE_KEY_INTERVENTI);
             else
@@ -145,12 +148,14 @@
         }
     }
 
+    // Recupera il nome dell'impianto associato partendo dall'ID dell'impianto
     private string GetNomeImpianto(int impiantoId)
     {
         var imp = impianti?.FirstOrDefault(i => i.Id == impiantoId);
         return imp != null ? imp.Nome : $"Impianto #{impiantoId}";
     }
 
+    // Restituisce lo stile visivo del badge in base allo stato dell'intervento
     private BadgeStyle GetBadgeStyle(string stato) => stato switch
     {
         "Completato" => BadgeStyle.Success,
@@ -159,6 +164,7 @@
         _ => BadgeStyle.Info
     };
 
+    // Gestisce l'eliminazione di un intervento chiedendo conferma e gestendo la modalita offline
     private async Task EliminaIntervento(Intervento intervento)
     {
         bool? confermato = await DialogService.Confirm(
@@ -169,7 +175,7 @@
 
         if (confermato == true)
         {
-            // Se l'intervento è stato creato offline
+            // Se l'intervento e stato creato offline, viene rimosso solo dalla coda dei nuovi elementi
             if (intervento.IsNuovoOffline || intervento.Id < 0)
             {
                 var codaNuovi = await LocalStorage.GetItemAsync<List<Intervento>>(CODA_OFFLINE_KEY) ?? new List<Intervento>();
@@ -178,6 +184,7 @@
             }
             else
             {
+                // Altrimenti invia la richiesta DELETE; in caso di errore di rete, accoda l'eliminazione
                 try
                 {
                     var response = await Http.DeleteAsync($"api/interventi/{intervento.Id}");
@@ -192,7 +199,7 @@
                 }
             }
 
-            // Aggiorna la vista locale immediata
+            // Aggiorna immediatamente la vista dell'utente e la cache locale
             if (interventi != null)
             {
                 interventi.RemoveAll(i => i.Id == intervento.Id);
@@ -205,6 +212,7 @@
                     await LocalStorage.SetItemAsync(STORAGE_KEY_INTERVENTI, interventi);
                 }
                 StateHasChanged();
+
                 if (grid != null)
                 {
                     await grid.Reload();
@@ -213,6 +221,7 @@
         }
     }
 
+    // Inserisce l'ID dell'intervento nella coda di eliminazione offline se il server non e raggiungibile
     private async Task AccodaEliminazioneOffline(int id)
     {
         if (id > 0)

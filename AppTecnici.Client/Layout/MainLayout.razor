@@ -90,11 +90,13 @@
     private const string CODA_ELIMINAZIONI_IMPIANTI_KEY = "coda_eliminazioni_impianti_offline";
     private const string CODA_ELIMINAZIONI_INTERVENTI_KEY = "coda_eliminazioni_interventi_offline";
 
+    // Eseguito dopo il rendering del componente: controlla subito la presenza di dati offline da sincronizzare
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         await ControllaCodaOffline();
     }
 
+    // Gestisce il logout dell'utente rimuovendo lo stato di autenticazione e reindirizzando alla schermata di login
     private async Task EseguiLogout()
     {
         var customAuth = (CustomAuthenticationStateProvider)AuthStateProvider;
@@ -102,15 +104,19 @@
         NavigationManager.NavigateTo("/login");
     }
 
+    // Ispeziona il LocalStorage per verificare quanti elementi sono in attesa di sincronizzazione
     private async Task ControllaCodaOffline()
     {
+        // Recupero delle code offline per creazioni/modifiche ed eliminazioni pendenti
         var codaImpianti = await LocalStorage.GetItemAsync<List<Impianto>>(CODA_IMPIANTI_KEY) ?? new List<Impianto>();
         var codaInterventi = await LocalStorage.GetItemAsync<List<Intervento>>(CODA_INTERVENTI_KEY) ?? new List<Intervento>();
         var delImpianti = await LocalStorage.GetItemAsync<List<int>>(CODA_ELIMINAZIONI_IMPIANTI_KEY) ?? new List<int>();
         var delInterventi = await LocalStorage.GetItemAsync<List<int>>(CODA_ELIMINAZIONI_INTERVENTI_KEY) ?? new List<int>();
 
+        // Calcolo del totale delle modifiche non ancora inviate al server
         int totaleNuovo = codaImpianti.Count + codaInterventi.Count + delImpianti.Count + delInterventi.Count;
 
+        // Aggiorna l'interfaccia utente solo se il contatore è cambiato
         if (elementiDaSincronizzare != totaleNuovo)
         {
             elementiDaSincronizzare = totaleNuovo;
@@ -118,6 +124,7 @@
         }
     }
 
+    // Algoritmo principale di sincronizzazione
     private async Task SincronizzaDatiOffline()
     {
         inSincronizzazione = true;
@@ -125,11 +132,14 @@
 
         try
         {
+            //  ELIMINAZIONI IMPIANTI
             var delImpianti = await LocalStorage.GetItemAsync<List<int>>(CODA_ELIMINAZIONI_IMPIANTI_KEY) ?? new List<int>();
             var delImpiantiRimasti = new List<int>();
+
             foreach (var id in delImpianti)
             {
                 var res = await Http.DeleteAsync($"api/impianti/{id}");
+                // Se la richiesta fallisce (e non è 404), mantiene l'ID in coda per il prossimo tentativo
                 if (!res.IsSuccessStatusCode && res.StatusCode != System.Net.HttpStatusCode.NotFound)
                 {
                     delImpiantiRimasti.Add(id);
@@ -137,8 +147,10 @@
             }
             await LocalStorage.SetItemAsync(CODA_ELIMINAZIONI_IMPIANTI_KEY, delImpiantiRimasti);
 
+            // 2. ELIMINAZIONI INTERVENTI
             var delInterventi = await LocalStorage.GetItemAsync<List<int>>(CODA_ELIMINAZIONI_INTERVENTI_KEY) ?? new List<int>();
             var delInterventiRimasti = new List<int>();
+
             foreach (var id in delInterventi)
             {
                 var res = await Http.DeleteAsync($"api/interventi/{id}");
@@ -149,6 +161,7 @@
             }
             await LocalStorage.SetItemAsync(CODA_ELIMINAZIONI_INTERVENTI_KEY, delInterventiRimasti);
 
+            // Caricamento delle liste locali per aggiornare i dati temporanei con gli ID reali generati dal database
             var listaImpiantiLocale = await LocalStorage.GetItemAsync<List<Impianto>>("lista_impianti") ?? new List<Impianto>();
             var listaInterventiLocale = await LocalStorage.GetItemAsync<List<Intervento>>("lista_interventi") ?? new List<Intervento>();
 
@@ -156,12 +169,14 @@
             var codaInterventi = await LocalStorage.GetItemAsync<List<Intervento>>(CODA_INTERVENTI_KEY) ?? new List<Intervento>();
             var impiantiRimasti = new List<Impianto>();
 
+            // 3. CREAZIONE / MODIFICA IMPIANTI
             foreach (var imp in codaImpianti)
             {
                 if (imp.IsNuovoOffline || imp.Id <= 0)
                 {
+                    // Inserimento di un NUOVO impianto creato offline
                     int tempId = imp.Id;
-                    imp.Id = 0;
+                    imp.Id = 0; // Azzera l'ID temporaneo per la generazione automatica su Azure SQL
 
                     var res = await Http.PostAsJsonAsync("api/impianti", imp);
                     if (res.IsSuccessStatusCode)
@@ -169,6 +184,7 @@
                         var creato = await res.Content.ReadFromJsonAsync<Impianto>();
                         if (creato != null)
                         {
+                            // Sostituisce l'elemento temporaneo con quello definitivo nella cache locale
                             var idxLoc = listaImpiantiLocale.FindIndex(i => i.Id == tempId);
                             if (idxLoc != -1)
                             {
@@ -176,6 +192,7 @@
                                 listaImpiantiLocale[idxLoc].IsNuovoOffline = false;
                             }
 
+                            // Assegna il nuovo ID reale dell'impianto agli interventi associati creati offline
                             foreach (var inteOff in codaInterventi.Where(i => i.ImpiantoId == tempId))
                             {
                                 inteOff.ImpiantoId = creato.Id;
@@ -188,12 +205,14 @@
                     }
                     else
                     {
+                        // Ripristina l'ID temporaneo e conserva l'impianto in coda in caso di errore
                         imp.Id = tempId;
                         impiantiRimasti.Add(imp);
                     }
                 }
                 else
                 {
+                    // Modifica di un impianto preesistente
                     var res = await Http.PutAsJsonAsync($"api/impianti/{imp.Id}", imp);
                     if (!res.IsSuccessStatusCode && res.StatusCode != System.Net.HttpStatusCode.NotFound)
                     {
@@ -202,17 +221,20 @@
                 }
             }
 
+            // Salva lo stato aggiornato degli impianti
             await LocalStorage.SetItemAsync(CODA_IMPIANTI_KEY, impiantiRimasti);
             await LocalStorage.SetItemAsync("lista_impianti", listaImpiantiLocale);
 
+            // 4. CREAZIONE / MODIFICA INTERVENTI
             var interventiRimasti = new List<Intervento>();
 
             foreach (var inte in codaInterventi)
             {
                 if (inte.IsNuovoOffline || inte.Id <= 0)
                 {
+                    // Inserimento di un NUOVO intervento creato offline
                     int tempId = inte.Id;
-                    inte.Id = 0;
+                    inte.Id = 0; // Azzera l'ID temporaneo
 
                     var res = await Http.PostAsJsonAsync("api/interventi", inte);
                     if (res.IsSuccessStatusCode)
@@ -236,6 +258,7 @@
                 }
                 else
                 {
+                    // Modifica di un intervento preesistente
                     var res = await Http.PutAsJsonAsync($"api/interventi/{inte.Id}", inte);
                     if (!res.IsSuccessStatusCode && res.StatusCode != System.Net.HttpStatusCode.NotFound)
                     {
@@ -244,6 +267,7 @@
                 }
             }
 
+            // Salva lo stato aggiornato degli interventi
             await LocalStorage.SetItemAsync(CODA_INTERVENTI_KEY, interventiRimasti);
             await LocalStorage.SetItemAsync("lista_interventi", listaInterventiLocale);
         }
@@ -253,6 +277,7 @@
         }
         finally
         {
+            // Ripristina lo stato dell'interfaccia e aggiorna il contatore degli elementi rimasti
             inSincronizzazione = false;
             await ControllaCodaOffline();
         }
@@ -260,7 +285,6 @@
 
     private void NascondiSidebar()
     {
-        // Questo forza la chiusura della barra laterale quando viene cliccato un link
         sidebarExpanded = false;
     }
 }

@@ -9,23 +9,24 @@ using Blazored.SessionStorage;
 
 var builder = WebAssemblyHostBuilder.CreateDefault(args);
 
-// Aggancia l'applicazione C# al file HTML
-builder.RootComponents.Add<App>("#app"); 
+// Configura i componenti radice collegando l'app Blazor al DOM dell'HTML
+builder.RootComponents.Add<App>("#app");
 builder.RootComponents.Add<HeadOutlet>("head::after");
 
-// LocalStorage
+// Registra i servizi di archiviazione locale e di sessione per la gestione dei dati offline e del login
 builder.Services.AddBlazoredLocalStorage();
 builder.Services.AddBlazoredSessionStorage();
 
-// Supporto Autenticazione Blazor
+// Registra i servizi necessari per il sistema di autorizzazione e autenticazione di Blazor
 builder.Services.AddOptions();
 builder.Services.AddAuthorizationCore();
 builder.Services.AddScoped<AuthenticationStateProvider, CustomAuthenticationStateProvider>();
 
-// Configurazione HttpClient con l'URL del Server
+// Configura il client HTTP basato sull'indirizzo di origine dell'applicazione
 builder.Services.AddScoped(sp => new HttpClient { BaseAddress = new Uri(builder.HostEnvironment.BaseAddress) });
 
-// Registrazione componenti Radzen
+// Registra i componenti UI di Radzen per l'uso dell'interfaccia grafica
 builder.Services.AddRadzenComponents();
 
+// Compila ed avvia l'applicazione Blazor WebAssembly
 await builder.Build().RunAsync();

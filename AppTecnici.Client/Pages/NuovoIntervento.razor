@@ -55,18 +55,26 @@
 </RadzenCard>
 
 @code {
+    // Nuovo oggetto intervento inizializzato con la data e l'ora attuali
     private Intervento nuovoIntervento = new Intervento { DataIntervento = DateTime.Now };
+    
+    // Lista degli impianti per popolare la tendina di selezione nel form
     private List<Impianto>? impianti;
+    
+    // Opzioni disponibili per lo stato del nuovo intervento
     private List<string> stati = new List<string> { "In attesa", "In corso", "Completato", "Annullato" };
 
+    // Chiavi per la gestione della cache locale e della coda offline
     private const string STORAGE_KEY_IMPIANTI = "lista_impianti";
     private const string STORAGE_KEY_INTERVENTI = "lista_interventi";
     private const string CODA_OFFLINE_KEY = "coda_interventi_offline";
 
+    // Al primo rendering carica prima gli impianti in cache per la selezione rapida, poi aggiorna da API
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         if (firstRender)
         {
+            // Tenta il recupero immediato della lista impianti dalla cache locale
             var impiantiCached = await LocalStorage.GetItemAsync<List<Impianto>>(STORAGE_KEY_IMPIANTI);
             if (impiantiCached != null)
             {
@@ -74,6 +82,7 @@
                 StateHasChanged();
             }
 
+            // Scarica la lista impianti aggiornata dal server se la connessione è disponibile
             try
             {
                 var nuoviImpianti = await Http.GetFromJsonAsync<List<Impianto>>("api/impianti");
@@ -91,10 +100,12 @@
         }
     }
 
+    // Invia il nuovo intervento al server o lo salva in locale se si è offline
     private async Task SalvaIntervento()
     {
         try
         {
+            // Tenta l'inserimento del record sul DB remoto tramite HTTP POST
             var response = await Http.PostAsJsonAsync("api/interventi", nuovoIntervento);
             if (response.IsSuccessStatusCode)
             {
@@ -105,6 +116,7 @@
                 }
                 catch { }
 
+                // Usa l'intervento restituito dal server con l'ID reale assegnato da Azure SQL
                 var interventoDefinitivo = creato ?? nuovoIntervento;
                 interventoDefinitivo.IsNuovoOffline = false;
                 await AggiornaLocalStorageEChiudi(interventoDefinitivo);
@@ -112,16 +124,19 @@
         }
         catch (Exception ex) when (ex is HttpRequestException || ex is TaskCanceledException)
         {
+            // Gestione del salvataggio locale quando l'API non è raggiungibile
             var interventiSalvati = await LocalStorage.GetItemAsync<List<Intervento>>(STORAGE_KEY_INTERVENTI) ?? new List<Intervento>();
 
-            // ID temporaneo negativo per la vista locale
+            // Assegna un ID temporaneo negativo progressivo (es. -1, -2)
             int minId = interventiSalvati.Where(i => i.Id < 0).Select(i => i.Id).DefaultIfEmpty(0).Min();
             int tempId = minId - 1;
 
+            // Imposta i flag per contrassegnare l'intervento come creato offline
             nuovoIntervento.Id = tempId;
             nuovoIntervento.IsNuovoOffline = true;
             nuovoIntervento.Sincronizzato = false;
 
+            // Inserisce l'intervento nella coda locale degli elementi in attesa di invio
             var coda = await LocalStorage.GetItemAsync<List<Intervento>>(CODA_OFFLINE_KEY) ?? new List<Intervento>();
             coda.Add(nuovoIntervento);
             await LocalStorage.SetItemAsync(CODA_OFFLINE_KEY, coda);
@@ -130,6 +145,7 @@
         }
     }
 
+    // Aggiunge l'intervento alla lista salvata in LocalStorage e reindirizza alla pagina principale degli interventi
     private async Task AggiornaLocalStorageEChiudi(Intervento interventoDaAggiungere)
     {
         var interventiSalvati = await LocalStorage.GetItemAsync<List<Intervento>>(STORAGE_KEY_INTERVENTI) ?? new List<Intervento>();
@@ -139,5 +155,6 @@
         NavigationManager.NavigateTo("/interventi");
     }
 
+    // Annulla l'operazione di inserimento e torna alla schermata interventi
     private void Annulla() => NavigationManager.NavigateTo("/interventi");
 }

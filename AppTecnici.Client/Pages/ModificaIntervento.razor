@@ -62,25 +62,32 @@
 </RadzenCard>
 
 @code {
+    // ID dell'intervento passato tramite l'URL per identificare il record da modificare
     [Parameter] public int Id { get; set; }
-
+    // Oggetto intervento caricato per il popolamento del form di modifica
     private Intervento? intervento;
+    // Lista degli impianti per popolare il menu a tendina di selezione
     private List<Impianto>? impianti;
     private List<string> stati = new List<string> { "In attesa", "In corso", "Completato", "Annullato" };
 
+    // Chiavi per la gestione della persistenza locale dei dati e delle modifiche offline
     private const string STORAGE_KEY_IMPIANTI = "lista_impianti";
     private const string STORAGE_KEY_INTERVENTI = "lista_interventi";
     private const string CODA_OFFLINE_KEY = "coda_interventi_offline";
 
+    // Al primo rendering carica i dati dalla cache locale; se l'intervento non è presente, interroga l'API remota
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         if (firstRender)
         {
+            // Recupera la lista impianti per la tendina di selezione
             impianti = await LocalStorage.GetItemAsync<List<Impianto>>(STORAGE_KEY_IMPIANTI);
 
+            // Cerca l'intervento nella cache locale
             var interventiSalvati = await LocalStorage.GetItemAsync<List<Intervento>>(STORAGE_KEY_INTERVENTI);
             intervento = interventiSalvati?.FirstOrDefault(i => i.Id == Id);
 
+            // Se non trovato in locale (es. accesso diretto tramite link), scarica i dati dal server
             if (intervento == null)
             {
                 try
@@ -97,17 +104,19 @@
         }
     }
 
+    // Salva le modifiche apportate all'intervento, gestendo sia l'invio al server sia la coda offline
     private async Task SalvaModifiche()
     {
         if (intervento == null) return;
 
-        // Se l'elemento è stato creato offline, aggiorna direttamente la coda dei nuovi elementi
+        // Se l'elemento è stato creato originariamente offline, aggiorna direttamente la coda dei pendenti
         if (intervento.IsNuovoOffline || intervento.Id < 0)
         {
             await AggiornaCodaOffline(intervento);
         }
         else
         {
+            // Tenta l'aggiornamento via HTTP PUT; in caso di errore di rete accoda la modifica per la sincronizzazione futura
             try
             {
                 var response = await Http.PutAsJsonAsync($"api/interventi/{intervento.Id}", intervento);
@@ -122,7 +131,7 @@
             }
         }
 
-        // Aggiorna la vista locale immediata
+        // Aggiorna la cache locale principale per mostrare subito le modifiche nell'interfaccia
         var interventiSalvati = await LocalStorage.GetItemAsync<List<Intervento>>(STORAGE_KEY_INTERVENTI) ?? new List<Intervento>();
         var index = interventiSalvati.FindIndex(i => i.Id == intervento.Id);
         if (index != -1)
@@ -138,6 +147,7 @@
         NavigationManager.NavigateTo("/interventi");
     }
 
+    // Inserisce o aggiorna l'intervento all'interno della coda degli elementi in attesa di sincronizzazione offline
     private async Task AggiornaCodaOffline(Intervento intv)
     {
         var coda = await LocalStorage.GetItemAsync<List<Intervento>>(CODA_OFFLINE_KEY) ?? new List<Intervento>();
@@ -153,5 +163,6 @@
         await LocalStorage.SetItemAsync(CODA_OFFLINE_KEY, coda);
     }
 
+    // Annulla l'operazione di modifica e ritorna alla lista degli interventi
     private void Annulla() => NavigationManager.NavigateTo("/interventi");
 }

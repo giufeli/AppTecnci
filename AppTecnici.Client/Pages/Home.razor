@@ -90,15 +90,16 @@
     private int totaleInterventi = 0;
     private int interventiInCorso = 0;
     private int interventiCompletati = 0;
-
     private List<StatoStatistica> statisticheStato = new();
 
+    // Raggruppa i dati degli interventi in base al loro stato
     private class StatoStatistica
     {
         public string Stato { get; set; } = string.Empty;
         public int Conteggio { get; set; }
     }
 
+    // Eseguito al primo rendering del componente per calcolare i dati da mostrare nella dashboard
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         if (firstRender)
@@ -107,22 +108,24 @@
         }
     }
 
+    // Estrae i dati immagazzinati in locale e calcola i vari indicatori e raggruppamenti
     private async Task CalcolaStatistiche()
     {
+        // Recupera le liste locali da LocalStorage
         var impianti = await LocalStorage.GetItemAsync<List<Impianto>>("lista_impianti") ?? new List<Impianto>();
         var interventi = await LocalStorage.GetItemAsync<List<Intervento>>("lista_interventi") ?? new List<Intervento>();
-
         totaleImpianti = impianti.Count;
         totaleInterventi = interventi.Count;
-
         interventiInCorso = interventi.Count(i => i.Stato == "In corso");
         interventiCompletati = interventi.Count(i => i.Stato == "Completato");
 
+        // Raggruppa gli interventi in base allo stato per generare le statistiche aggregate
         statisticheStato = interventi
             .GroupBy(i => i.Stato)
             .Select(g => new StatoStatistica { Stato = g.Key ?? "N/D", Conteggio = g.Count() })
             .ToList();
 
+        // Notifica Blazor di aggiornare l'interfaccia grafica con i nuovi dati
         StateHasChanged();
     }
 }

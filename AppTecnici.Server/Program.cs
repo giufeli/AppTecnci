@@ -3,7 +3,7 @@ using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// 1. Configurazione DbContext con resilienza
+// 1. Configurazione DbContext con strategia di resilienza per Azure SQL (retry in caso di disconnessione)
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseSqlServer(
         builder.Configuration.GetConnectionString("MaintenanceDB"),
@@ -13,7 +13,7 @@ builder.Services.AddDbContext<AppDbContext>(options =>
             errorNumbersToAdd: null)
     ));
 
-// 2. CORS (abilita la comunicazione Client-Server)
+// 2. Configurazione CORS per consentire le chiamate HTTP da parte del client Blazor
 builder.Services.AddCors(options => {
     options.AddPolicy("AllowClient", policy =>
     {
@@ -23,6 +23,7 @@ builder.Services.AddCors(options => {
     });
 });
 
+// Aggiunta dei controller API con aumento del limite di profondità per la serializzazione JSON
 builder.Services.AddControllers()
     .AddJsonOptions(options =>
     {
@@ -40,12 +41,13 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
+
 app.UseHttpsRedirection();
 app.UseBlazorFrameworkFiles();
 app.UseStaticFiles();
-app.UseRouting();
-app.UseCors("AllowClient");
+app.UseRouting(); // Gestione dell'instradamento delle richieste
+app.UseCors("AllowClient"); // Applicazione della policy CORS definita in precedenza
 app.UseAuthorization();
-app.MapControllers();
-app.MapFallbackToFile("index.html");
-app.Run();
+app.MapControllers(); // Mappatura delle rotte per i Controller API
+app.MapFallbackToFile("index.html"); // Fallback per l'architettura Single Page Application (SPA): reindirizza al file index.html di Blazor
+app.Run(); // Avvio del web server

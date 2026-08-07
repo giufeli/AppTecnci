@@ -103,6 +103,7 @@
     private const string CODA_OFFLINE_KEY = "coda_impianti_offline";
     private const string CODA_ELIMINAZIONI_IMPIANTI_KEY = "coda_eliminazioni_impianti_offline";
 
+    // Al primo avvio carica prima la cache locale e poi richiede i dati aggiornati dall'API
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         if (firstRender)
@@ -118,13 +119,14 @@
         }
     }
 
+    // Scarica la lista impianti aggiornata dal server
     private async Task CaricaImpianti()
     {
         try
         {
             var nuoviDati = await Http.GetFromJsonAsync<List<Impianto>>("api/impianti");
             
-            // Mantieni nella lista visualizzata gli elementi creati offline non ancora sincronizzati
+            // Recupera eventuali elementi creati offline non ancora salvati nel DB remoto
             var impiantiOfflineInCoda = await LocalStorage.GetItemAsync<List<Impianto>>(CODA_OFFLINE_KEY) ?? new List<Impianto>();
             
             impianti = nuoviDati ?? new List<Impianto>();
@@ -133,6 +135,7 @@
                 impianti.AddRange(impiantiOfflineInCoda);
             }
 
+            // Aggiorna la cache locale per consultazioni successive
             if (impianti.Count == 0)
             {
                 await LocalStorage.RemoveItemAsync(STORAGE_KEY);
@@ -150,6 +153,7 @@
         }
     }
 
+    // Mostra la piantina/cartina dell'impianto 
     private async Task ApriCartina(Impianto impianto)
     {
         await DialogService.OpenAsync(impianto.Nome, ds =>
@@ -159,6 +163,7 @@
         , new DialogOptions() { Width = "auto", Height = "auto", Resizable = true, Draggable = true });
     }
 
+    // Gestisce la cancellazione di un impianto
     private async Task EliminaImpianto(Impianto impianto)
     {
         bool? confermato = await DialogService.Confirm(
@@ -169,16 +174,16 @@
 
         if (confermato == true)
         {
-            // Se l'impianto è stato creato offline (non presente su DB Server)
+            // Se l'elemento è stato creato offline e non esiste sul server, basta rimuoverlo dalla coda di creazione
             if (impianto.IsNuovoOffline || impianto.Id < 0)
             {
-                // Rimuovilo dalla coda dei nuovi elementi pendenti
                 var codaNuovi = await LocalStorage.GetItemAsync<List<Impianto>>(CODA_OFFLINE_KEY) ?? new List<Impianto>();
                 codaNuovi.RemoveAll(i => i.Id == impianto.Id || i.Nome == impianto.Nome);
                 await LocalStorage.SetItemAsync(CODA_OFFLINE_KEY, codaNuovi);
             }
             else
             {
+                // Altrimenti tenta la cancellazione via HTTP; in caso di errore (es. assenza di rete), accoda la cancellazione per dopo
                 try
                 {
                     var response = await Http.DeleteAsync($"api/impianti/{impianto.Id}");
@@ -193,7 +198,7 @@
                 }
             }
 
-            // Aggiorna la vista locale immediata
+            // Rimuove immediatamente l'elemento dalla schermata locale e aggiorna la cache
             if (impianti != null)
             {
                 impianti.RemoveAll(i => i.Id == impianto.Id);
@@ -215,6 +220,7 @@
         }
     }
 
+    // Registra l'ID dell'impianto nella coda di eliminazione offline se la chiamata al server è fallita
     private async Task AccodaEliminazioneOffline(int id)
     {
         if (id > 0)
