@@ -10,7 +10,8 @@
     <RadzenButton Icon="add" Text="Nuovo Impianto" ButtonStyle="ButtonStyle.Primary" Click="@(() => NavigationManager.NavigateTo("/impianti/nuovo"))" />
 </div>
 
-<div style="overflow-x: auto; width: 100%;">
+<!-- VISTA DESKTOP-->
+<div class="d-none d-md-block" style="overflow-x: auto; width: 100%;">
     <RadzenDataGrid @ref="grid" Data="@impianti" TItem="Impianto" AllowPaging="true" PageSize="5" Style="min-width: 700px;">
         <Columns>
             <RadzenDataGridColumn Property="CartinaBase64" Title="Cartina" Width="80px" Sortable="false">
@@ -49,6 +50,50 @@
             </RadzenDataGridColumn>
         </Columns>
     </RadzenDataGrid>
+</div>
+
+<!-- VISTA MOBILE -->
+<div class="d-block d-md-none">
+    @if (impianti != null)
+    {
+        <RadzenStack Spacing="3">
+            @foreach (var impianto in impianti)
+            {
+                <RadzenCard Variant="Variant.Outlined" Class="rz-p-4">
+                    <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.SpaceBetween" AlignItems="AlignItems.Center" Class="rz-mb-2">
+                        <RadzenText TextStyle="TextStyle.H6" Class="rz-m-0"><strong>@impianto.Nome</strong></RadzenText>
+                        <RadzenBadge BadgeStyle="BadgeStyle.Light" Text="@($"ID: {impianto.Id}")" />
+                    </RadzenStack>
+
+                    <RadzenText TextStyle="TextStyle.Body2" Class="rz-mb-1">
+                        <RadzenIcon Icon="place" Style="font-size: 16px; vertical-align: middle;" /> @impianto.Indirizzo
+                    </RadzenText>
+                    
+                    <RadzenText TextStyle="TextStyle.Body2" Class="rz-mb-3" Style="color: gray;">
+                        @impianto.Descrizione
+                    </RadzenText>
+
+                    <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.SpaceBetween" AlignItems="AlignItems.Center">
+                        <!-- Bottone Cartina Mobile -->
+                        @if (!string.IsNullOrEmpty(impianto.CartinaBase64))
+                        {
+                            <RadzenButton Icon="image" Text="Cartina" ButtonStyle="ButtonStyle.Info" Size="ButtonSize.Small" Variant="Variant.Flat" Click="@(() => ApriCartina(impianto))" />
+                        }
+                        else
+                        {
+                            <RadzenButton Icon="hide_image" Text="N/D" ButtonStyle="ButtonStyle.Secondary" Size="ButtonSize.Small" Variant="Variant.Flat" Disabled="true" />
+                        }
+
+                        <!-- Bottoni Azioni Mobile -->
+                        <div>
+                            <RadzenButton Icon="edit" ButtonStyle="ButtonStyle.Warning" Size="ButtonSize.Small" Class="rz-mr-1" Click="@(() => NavigationManager.NavigateTo($"/impianti/modifica/{impianto.Id}"))" />
+                            <RadzenButton Icon="delete" ButtonStyle="ButtonStyle.Danger" Size="ButtonSize.Small" Click="@(() => EliminaImpianto(impianto))" />
+                        </div>
+                    </RadzenStack>
+                </RadzenCard>
+            }
+        </RadzenStack>
+    }
 </div>
 
 @code {

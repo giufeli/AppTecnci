@@ -12,10 +12,8 @@ namespace AppTecnici.Shared.Models
         public string? CartinaBase64 { get; set; }
         public bool Sincronizzato { get; set; } = true;
 
-        // [NotMapped] dice a EF Core di NON creare/cercare la colonna nel DB SQL
-        // [JsonIgnore] la ignora durante il passaggio dati API
-        [NotMapped]
-        [JsonIgnore]
+        [NotMapped] // [NotMapped] dice a EF Core di NON creare/cercare la colonna nel DB SQL
+        [JsonIgnore] // [JsonIgnore] la ignora durante il passaggio dati API
         public bool IsNuovoOffline { get; set; } = false;
     }
 }

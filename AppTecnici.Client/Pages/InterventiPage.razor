@@ -10,7 +10,8 @@
     <RadzenButton Icon="add" Text="Nuovo Intervento" ButtonStyle="ButtonStyle.Primary" Click="@(() => NavigationManager.NavigateTo("/interventi/nuovo"))" />
 </div>
 
-<div style="overflow-x: auto; width: 100%;">
+<!-- VISTA DESKTOP-->
+<div class="d-none d-md-block" style="overflow-x: auto; width: 100%;">
     <RadzenDataGrid @ref="grid" Data="@interventi" TItem="Intervento" AllowPaging="true" PageSize="5" Style="min-width: 800px;">
         <Columns>
             <RadzenDataGridColumn Property="Id" Title="ID" Width="70px" />
@@ -44,6 +45,46 @@
             </RadzenDataGridColumn>
         </Columns>
     </RadzenDataGrid>
+</div>
+
+<!-- VISTA MOBILE-->
+<div class="d-block d-md-none">
+    @if (interventi != null)
+    {
+        <RadzenStack Spacing="3">
+            @foreach (var intervento in interventi)
+            {
+                <RadzenCard Variant="Variant.Outlined" Class="rz-p-4">
+                    <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.SpaceBetween" AlignItems="AlignItems.Center" Class="rz-mb-2">
+                        <RadzenText TextStyle="TextStyle.H6" Class="rz-m-0"><strong>@intervento.Titolo</strong></RadzenText>
+                        <RadzenBadge BadgeStyle="BadgeStyle.Light" Text="@($"ID: {intervento.Id}")" />
+                    </RadzenStack>
+
+                    <RadzenText TextStyle="TextStyle.Subtitle2" Class="rz-mb-1">
+                        <RadzenIcon Icon="apartment" Style="font-size: 16px; vertical-align: middle;" /> @GetNomeImpianto(intervento.ImpiantoId)
+                    </RadzenText>
+                    
+                    <RadzenText TextStyle="TextStyle.Body2" Class="rz-mb-2" Style="color: gray;">
+                        @intervento.Descrizione
+                    </RadzenText>
+
+                    <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.SpaceBetween" AlignItems="AlignItems.Center" Class="rz-mb-3">
+                        <RadzenText TextStyle="TextStyle.Caption" Class="rz-m-0">
+                            <RadzenIcon Icon="calendar_today" Style="font-size: 14px; vertical-align: middle;" /> @intervento.DataIntervento.ToString("dd/MM/yyyy HH:mm")
+                        </RadzenText>
+                        <RadzenBadge BadgeStyle="@GetBadgeStyle(intervento.Stato)" Text="@intervento.Stato" />
+                    </RadzenStack>
+
+                    <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.End" AlignItems="AlignItems.Center">
+                        <div>
+                            <RadzenButton Icon="edit" ButtonStyle="ButtonStyle.Warning" Size="ButtonSize.Small" Class="rz-mr-1" Click="@(() => NavigationManager.NavigateTo($"/interventi/modifica/{intervento.Id}"))" />
+                            <RadzenButton Icon="delete" ButtonStyle="ButtonStyle.Danger" Size="ButtonSize.Small" Click="@(() => EliminaIntervento(intervento))" />
+                        </div>
+                    </RadzenStack>
+                </RadzenCard>
+            }
+        </RadzenStack>
+    }
 </div>
 
 @code {

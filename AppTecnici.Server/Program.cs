@@ -13,7 +13,7 @@ builder.Services.AddDbContext<AppDbContext>(options =>
             errorNumbersToAdd: null)
     ));
 
-// 2. Aggiunta CORS (abilita la comunicazione Client-Server)
+// 2. CORS (abilita la comunicazione Client-Server)
 builder.Services.AddCors(options => {
     options.AddPolicy("AllowClient", policy =>
     {
@@ -41,19 +41,11 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
-
-// --- INIZIO AGGIUNTE PER BLAZOR HOSTED ---
 app.UseBlazorFrameworkFiles();
 app.UseStaticFiles();
 app.UseRouting();
-// --- FINE AGGIUNTE PER BLAZOR HOSTED ---
-
 app.UseCors("AllowClient");
 app.UseAuthorization();
-
 app.MapControllers();
-
-// --- ISTRUZIONE FALLBACK PER BLAZOR ---
 app.MapFallbackToFile("index.html");
-
 app.Run();

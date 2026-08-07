@@ -9,16 +9,18 @@
 
 <AuthorizeView>
     <Authorized>
-        <!-- LAYOUT COMPLETO CON NAVBAR PER UTENTI LOGGATI -->
         <RadzenLayout Style="grid-template-columns: auto 1fr; grid-template-rows: auto 1fr; min-height: 100vh;">
             <RadzenHeader>
-                <div class="d-flex justify-content-between align-items-center w-100 px-3">
-                    <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0">
+                <div class="d-flex justify-content-between align-items-center w-100 px-2 px-md-3">
+
+                    <!-- TITOLO E MENU -->
+                    <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0" Style="overflow: hidden;">
                         <RadzenSidebarToggle Click="@(() => sidebarExpanded = !sidebarExpanded)" />
-                        <RadzenLabel Text="App Tecnici - Gestione Impianti" Style="font-weight: bold; margin-left: 10px; color: white;" />
+                        <RadzenLabel Text="App Tecnici - Gestione Impianti" Class="d-none d-sm-block" Style="font-weight: bold; margin-left: 10px; color: white; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" />
                     </RadzenStack>
 
-                    <div class="d-flex align-items-center gap-3">
+                    <!-- VISTA DESKTOP-->
+                    <div class="d-none d-md-flex align-items-center gap-3">
                         <RadzenButton Icon="sync"
                                       Text="@(elementiDaSincronizzare > 0 ? "Sincronizza" : "Già sincronizzato")"
                                       ButtonStyle="@(elementiDaSincronizzare > 0 ? ButtonStyle.Warning : ButtonStyle.Success)"
@@ -28,14 +30,34 @@
                                       Click="@SincronizzaDatiOffline"
                                       ToolTip="@(elementiDaSincronizzare > 0 ? $"Ci sono {elementiDaSincronizzare} elementi da sincronizzare" : "Tutti i dati sono sincronizzati")" />
 
-                        <RadzenButton Icon="logout" 
-                                      Text="Logout" 
-                                      ButtonStyle="ButtonStyle.Danger" 
+                        <RadzenButton Icon="logout"
+                                      Text="Logout"
+                                      ButtonStyle="ButtonStyle.Danger"
                                       Variant="Variant.Flat"
                                       Shade="Shade.Darker"
-                                      Size="ButtonSize.Small" 
+                                      Size="ButtonSize.Small"
                                       Click="@EseguiLogout" />
                     </div>
+
+                    <!-- VISTA MOBILE-->
+                    <div class="d-flex d-md-none align-items-center gap-1">
+                        <RadzenButton Icon="sync"
+                                      Text="@(elementiDaSincronizzare > 0 ? "Sincronizza" : "Aggiornato")"
+                                      ButtonStyle="@(elementiDaSincronizzare > 0 ? ButtonStyle.Warning : ButtonStyle.Success)"
+                                      Size="ButtonSize.ExtraSmall"
+                                      IsBusy="@inSincronizzazione"
+                                      Disabled="@(elementiDaSincronizzare == 0 || inSincronizzazione)"
+                                      Click="@SincronizzaDatiOffline" />
+
+                        <RadzenButton Icon="logout"
+                                      Text="Logout"
+                                      ButtonStyle="ButtonStyle.Danger"
+                                      Variant="Variant.Flat"
+                                      Shade="Shade.Darker"
+                                      Size="ButtonSize.ExtraSmall"
+                                      Click="@EseguiLogout" />
+                    </div>
+
                 </div>
             </RadzenHeader>
 
